@@ -13,7 +13,7 @@ import (
 
 func main() {
 	if len(os.Args) < 2 {
-		log.Fatalf("Usage: %s <path-to-main-spec> <path-to-new-spec>\n", os.Args[0])
+		log.Fatalf("Usage: %s <path-to-main-spec> [<path-to-new-spec>]\n", os.Args[0])
 	}
 
 	dst := ""
