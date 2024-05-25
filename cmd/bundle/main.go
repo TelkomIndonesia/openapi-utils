@@ -7,7 +7,6 @@ import (
 	"path/filepath"
 
 	"github.com/pb33f/libopenapi"
-	"github.com/pb33f/libopenapi/bundler"
 	"github.com/pb33f/libopenapi/datamodel"
 )
 
@@ -41,7 +40,7 @@ func main() {
 		log.Fatalln("fail to re-build openapi spec:", errs)
 	}
 
-	bytes, err := bundler.BundleDocument(&v3Doc.Model)
+	bytes, err := bundle(&v3Doc.Model, true)
 	if err != nil {
 		log.Fatalln("fail to bundle openapi spec:", err)
 	}
