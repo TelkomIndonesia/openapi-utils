@@ -18,19 +18,8 @@ func bundle(model *v3.Document, inline bool) ([]byte, error) {
 	}
 	compact := func(idx *index.SpecIndex, root bool) {
 		sequencedReferences := idx.GetRawReferencesSequenced()
-		for _, sequenced := range sequencedReferences {
-			switch {
-			case strings.HasPrefix(sequenced.Definition, "#/components/schemas"):
-				schema := &baselow.Schema{}
-				schema.Build(context.Background(), sequenced.Node, sequenced.Index)
-				model.Components.Schemas.Set(sequenced.Name, base.CreateSchemaProxy(base.NewSchema(schema)))
-			}
-		}
-
 		mappedReferences := idx.GetMappedReferences()
 		for _, sequenced := range sequencedReferences {
-			mappedReference := mappedReferences[sequenced.FullDefinition]
-
 			// if we're in the root document, don't bundle anything.
 			refExp := strings.Split(sequenced.FullDefinition, "#/")
 			if len(refExp) == 2 {
@@ -43,17 +32,30 @@ func bundle(model *v3.Document, inline bool) ([]byte, error) {
 				}
 			}
 
-			if mappedReference != nil && !mappedReference.Circular {
-				p := base.CreateSchemaProxyRef("#/components/schemas/" + sequenced.Name)
-				sequenced.Node.Content = p.GetReferenceNode().Content
+			mappedReference := mappedReferences[sequenced.FullDefinition]
+			if mappedReference == nil {
 				continue
 			}
-			if mappedReference != nil && mappedReference.Circular {
+			if mappedReference.Circular {
 				if idx.GetLogger() != nil {
 					idx.GetLogger().Warn("[bundler] skipping circular reference",
 						"ref", sequenced.FullDefinition)
 				}
+				continue
 			}
+
+			ref := ""
+			switch {
+			case strings.HasPrefix(sequenced.Definition, "#/components/schemas"):
+				ref = "#/components/schemas/" + sequenced.Name
+				schema := &baselow.Schema{}
+				schema.Build(context.Background(), sequenced.Node, sequenced.Index)
+				model.Components.Schemas.Set(sequenced.Name, base.CreateSchemaProxy(base.NewSchema(schema)))
+			}
+			if ref == "" {
+				continue
+			}
+			sequenced.Node.Content = base.CreateSchemaProxyRef(ref).GetReferenceNode().Content
 		}
 	}
 
