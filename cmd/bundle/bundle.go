@@ -124,6 +124,5 @@ func toYamlNode(key string, v interface{}) (n *yaml.Node, err error) {
 		return nil, err
 	}
 	y := yaml.Node{}
-	yaml.Unmarshal(b, &y)
-	return &y, err
+	return &y, yaml.Unmarshal(b, &y)
 }
