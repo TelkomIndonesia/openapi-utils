@@ -48,18 +48,6 @@ func bundleFile(p string) (bytes []byte, err error) {
 	return
 }
 
-func toYamlNode(key string, v interface{}) (n *yaml.Node, err error) {
-	b, err := yaml.Marshal(map[string]interface{}{
-		key: v,
-	})
-	if err != nil {
-		return nil, err
-	}
-	y := yaml.Node{}
-	yaml.Unmarshal(b, &y)
-	return &y, err
-}
-
 func bundle(model *v3.Document, inline bool) ([]byte, error) {
 	model.Components = &v3.Components{
 		Schemas: orderedmap.New[string, *base.SchemaProxy](),
@@ -104,22 +92,9 @@ func bundle(model *v3.Document, inline bool) ([]byte, error) {
 			if ref == "" {
 				continue
 			}
+
 			sequenced.Node.Content = base.CreateSchemaProxyRef(ref).GetReferenceNode().Content
 		}
-
-		if root {
-			return
-		}
-
-		// copy components into root node in case new reference needs to be resolved, e.g. reference inside `allOf`
-		components, err := toYamlNode("components", *model.Components)
-		if err != nil {
-			if idx.GetLogger() != nil {
-				idx.GetLogger().Warn("[bundler] fail to convert components into `*node.Yaml`", err)
-			}
-			return
-		}
-		idx.GetRootNode().Content = components.Content
 	}
 
 	rolodex := model.Rolodex
@@ -128,5 +103,27 @@ func bundle(model *v3.Document, inline bool) ([]byte, error) {
 		compact(idx, false)
 	}
 	compact(rolodex.GetRootIndex(), true)
+
+	// copy components into root node in case new references need to be resolved, e.g. reference inside `allOf`
+	for _, idx := range append(indexes, rolodex.GetRootIndex()) {
+		components, err := toYamlNode("components", *model.Components)
+		if err != nil {
+			return nil, fmt.Errorf("fail to convert components into `*node.Yaml`: %w", err)
+		}
+		idx.GetRootNode().Content = components.Content
+	}
+
 	return model.Render()
+}
+
+func toYamlNode(key string, v interface{}) (n *yaml.Node, err error) {
+	b, err := yaml.Marshal(map[string]interface{}{
+		key: v,
+	})
+	if err != nil {
+		return nil, err
+	}
+	y := yaml.Node{}
+	yaml.Unmarshal(b, &y)
+	return &y, err
 }
