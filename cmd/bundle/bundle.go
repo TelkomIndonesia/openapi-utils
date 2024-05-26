@@ -105,11 +105,11 @@ func bundle(model *v3.Document, inline bool) ([]byte, error) {
 	compact(rolodex.GetRootIndex(), true)
 
 	// copy components into root node in case new references need to be resolved, e.g. reference inside `allOf`
+	components, err := toYamlNode("components", *model.Components)
+	if err != nil {
+		return nil, fmt.Errorf("fail to convert components into `*node.Yaml`: %w", err)
+	}
 	for _, idx := range append(indexes, rolodex.GetRootIndex()) {
-		components, err := toYamlNode("components", *model.Components)
-		if err != nil {
-			return nil, fmt.Errorf("fail to convert components into `*node.Yaml`: %w", err)
-		}
 		idx.GetRootNode().Content = components.Content
 	}
 
