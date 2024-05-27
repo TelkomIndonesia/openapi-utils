@@ -2,7 +2,10 @@ module github.com/telkomindonesia/openapi-utils
 
 go 1.21
 
-require github.com/pb33f/libopenapi v0.16.6
+require (
+	github.com/pb33f/libopenapi v0.16.6
+	gopkg.in/yaml.v3 v3.0.1
+)
 
 require (
 	github.com/bahlo/generic-list-go v0.2.0 // indirect
@@ -15,5 +18,4 @@ require (
 	golang.org/x/net v0.1.0 // indirect
 	golang.org/x/sync v0.6.0 // indirect
 	golang.org/x/sys v0.1.0 // indirect
-	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
