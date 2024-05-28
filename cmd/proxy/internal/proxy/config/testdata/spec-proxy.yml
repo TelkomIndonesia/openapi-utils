@@ -15,7 +15,6 @@ paths:
             $ref: "#/components/schemas/ZeroableBoolean"
       # populate the rest of parameters from an operation defined inside `spec`
       x-proxy:
-        spec: ./spec-profile.yml
         path: /tenants/{tenant-id}/profiles/{profile-id}
         method: get
         inject:
@@ -26,7 +25,6 @@ paths:
     get:
       # populate the rest of parameters from an operation defined inside `spec`
       x-proxy:
-        spec: ./spec-profile.yml
         path: /tenants/{tenant-id}/profiles/{profile-id}
         method: get
         inject:
@@ -37,3 +35,6 @@ components:
   schemas:
     ZeroableBoolean:
       type: boolean
+  x-proxy:
+    profile:
+      spec: ./spec-profile.yml
