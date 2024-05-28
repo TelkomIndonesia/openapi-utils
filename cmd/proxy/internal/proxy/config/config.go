@@ -73,7 +73,7 @@ func (p *Proxy) GetOpenAPIModel() (doc v3.Document, err error) {
 }
 
 type ProxyOperation struct {
-	*Proxy
+	*Proxy `json:",inline" yaml:",inline"`
 
 	Path   string `json:"path" yaml:"path"`
 	Method string `json:"method" yaml:"method"`

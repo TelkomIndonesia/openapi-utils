@@ -3,6 +3,7 @@ package config
 import (
 	"context"
 	"errors"
+	"fmt"
 	"log/slog"
 	"os"
 	"path"
@@ -17,6 +18,7 @@ import (
 	baselow "github.com/pb33f/libopenapi/datamodel/low/base"
 	"github.com/pb33f/libopenapi/orderedmap"
 	"github.com/stretchr/testify/require"
+	"gopkg.in/yaml.v3"
 )
 
 func TestParse(t *testing.T) {
@@ -71,7 +73,8 @@ func TestCompile(t *testing.T) {
 	require.True(t, ok, "extension should exists")
 	var proxyOperation ProxyOperation
 	require.NoError(t, ex.Decode(&proxyOperation), "should load extension")
-	proxyOperation.Proxy = proxy["profile"]
+	t.Log(proxyOperation)
+	proxyOperation.Proxy = proxy[*proxyOperation.Name]
 
 	specProfile, err := os.ReadFile(path.Join(specDir, proxyOperation.Spec))
 	require.NoError(t, err)
@@ -165,4 +168,15 @@ func TestCompile(t *testing.T) {
 	by, docProxy, modelProxy, errs := docProxy.RenderAndReload()
 	require.NoError(t, errors.Join(errs...))
 	t.Log(string(by))
+}
+
+func TestMarshal(t *testing.T) {
+	name := "test"
+	m, err := yaml.Marshal(ProxyOperation{
+		Proxy: &Proxy{
+			Name: &name,
+		},
+	})
+	require.NoError(t, err)
+	fmt.Println(string(m))
 }

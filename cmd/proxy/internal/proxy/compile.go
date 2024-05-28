@@ -48,7 +48,7 @@ func CompileByte(ctx context.Context, specBytes []byte) (newspec []byte, err err
 			if err != nil {
 				return nil, fmt.Errorf("fail to decode Proxy Operation : %w", err)
 			}
-			if pop.Proxy == nil || pop.Spec == "" && pop.Name != nil {
+			if pop.Spec == "" && pop.Proxy != nil && pop.Proxy.Name != nil {
 				pop.Proxy = proxies[*pop.Name]
 			}
 			proxiesOp[op] = &pop
