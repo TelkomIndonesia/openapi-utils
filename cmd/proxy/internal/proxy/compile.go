@@ -30,9 +30,6 @@ func CompileByte(ctx context.Context, specBytes []byte) (newspec []byte, err err
 		}
 		for k, v := range proxies {
 			v.Name = &k
-			if _, err = v.GetOpenAPIModel(); err != nil {
-				return nil, fmt.Errorf("fail to load `x-proxy` :%w", err)
-			}
 		}
 	}
 
@@ -49,7 +46,13 @@ func CompileByte(ctx context.Context, specBytes []byte) (newspec []byte, err err
 				return nil, fmt.Errorf("fail to decode Proxy Operation : %w", err)
 			}
 			if pop.Spec == "" && pop.Proxy != nil && pop.Proxy.Name != nil {
-				pop.Proxy = proxies[*pop.Name]
+				pop.Proxy, ok = proxies[*pop.Name]
+				if !ok {
+					return nil, fmt.Errorf("invalid proxy definition for %s: no spec is provided", *pop.Proxy.Name)
+				}
+			}
+			if _, err = pop.GetOpenAPIModel(); err != nil {
+				return nil, fmt.Errorf("fail to load `x-proxy` :%w", err)
 			}
 			proxiesOp[op] = &pop
 		}
