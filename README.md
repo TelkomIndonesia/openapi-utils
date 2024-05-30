@@ -2,7 +2,10 @@
 
 Several utilities for working with openapi document.
 
-Note that this is still in very early development stage.
+Note that this is still in very early development stage. Current limitations includes but not restricted to:
+
+- Can only handle reference to `schema`.
+- When [bundling](#bundle), the `schema` on non-main files needs to be under `components.schemas` key
 
 ## Bundle
 
@@ -16,7 +19,7 @@ For testing the functionality, you can use [spec inside testdata directory](./cm
 
 ## Proxy
 
-Create a new schema by picking operations from other specs. The main purpose was to derive an OpenAPI spec for an [api-gateways or backend-for-frontends](https://microservices.io/patterns/apigateway.html) using OpenAPI spec of services behind it. It introduces a new `x-proxy` extension.
+Create a new spec by picking operations from other specs. The main purpose was to derive an OpenAPI spec for an [api-gateways or backend-for-frontends](https://microservices.io/patterns/apigateway.html) using OpenAPI spec of services behind it. It introduces a new `x-proxy` extension.
 
 ```bash
 go run -mod=mod github.com/telkomindonesia/openapi-utils/cmd/bundle <path-to-proxy-spec> [<path-to-new-spec>]
