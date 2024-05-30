@@ -98,25 +98,19 @@ func CompileByte(ctx context.Context, specBytes []byte, specDir string) (newspec
 	proxyOperationUpstreamOperations := map[*config.ProxyOperation]*v3.Operation{}
 	for doc, popmap := range upstreamDocsOri {
 		docV3, _ := doc.BuildV3Model()
+
+		// delete unused operation
 		opmap := map[*v3.Operation]struct{}{}
 		for _, v := range popmap {
 			opmap[v] = struct{}{}
 		}
 		for m := range orderedmap.Iterate(ctx, docV3.Model.Paths.PathItems) {
 			pathItem := m.Value()
-
-			// delete unused operations
-			found := false
 			for method, op := range getOperationsMap(m.Value()) {
-				_, ok := opmap[op]
-				if ok {
-					found = true
+				if _, ok := opmap[op]; ok {
 					continue
 				}
 				setOperation(pathItem, method, nil)
-			}
-			if !found {
-				docV3.Model.Paths.PathItems.Delete(m.Key())
 			}
 		}
 
