@@ -21,7 +21,7 @@ type Proxy struct {
 
 	once  sync.Once
 	doc   libopenapi.Document
-	v3Doc v3.Document
+	v3doc *libopenapi.DocumentModel[v3.Document]
 }
 
 func (p *Proxy) buildOpenapiDocument() (err error) {
@@ -45,7 +45,7 @@ func (p *Proxy) buildOpenapiDocument() (err error) {
 			return
 		}
 
-		p.v3Doc = d.Model
+		p.v3doc = d
 	})
 	return
 }
@@ -61,7 +61,7 @@ func (p *Proxy) GetOpenAPIDoc() (doc libopenapi.Document, err error) {
 	return p.doc, nil
 }
 
-func (p *Proxy) GetOpenAPIModel() (doc v3.Document, err error) {
+func (p *Proxy) GetOpenAPIV3Doc() (doc *libopenapi.DocumentModel[v3.Document], err error) {
 	if p.doc == nil {
 		err = p.buildOpenapiDocument()
 		if err != nil {
@@ -69,7 +69,7 @@ func (p *Proxy) GetOpenAPIModel() (doc v3.Document, err error) {
 		}
 	}
 
-	return p.v3Doc, nil
+	return p.v3doc, nil
 }
 
 type ProxyOperation struct {

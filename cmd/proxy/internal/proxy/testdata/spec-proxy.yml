@@ -7,6 +7,7 @@ servers:
 paths:
   "/profiles/{profile-id}":
     get:
+      operationId: GetProfile
       parameters:
         - name: "validate"
           in: query
@@ -24,6 +25,7 @@ paths:
               in: path
   "/validated-profiles/{profile-id}":
     get:
+      operationId: GetValidatedProfile
       # populate the rest of parameters from an operation defined inside `spec`
       x-proxy:
         name: profile
