@@ -1,14 +1,12 @@
 package main
 
 import (
+	"context"
 	"log"
-	"log/slog"
 	"os"
 	"path/filepath"
 
-	"github.com/pb33f/libopenapi"
-	"github.com/pb33f/libopenapi/datamodel"
-	v3 "github.com/pb33f/libopenapi/datamodel/high/v3"
+	"github.com/telkomindonesia/openapi-utils/cmd/proxy/internal/proxy"
 )
 
 func main() {
@@ -17,42 +15,28 @@ func main() {
 	specDir, _ := filepath.Abs(filepath.Dir(src))
 	specBytes, _ := os.ReadFile(sf)
 
-	doc, err := libopenapi.NewDocumentWithConfiguration([]byte(specBytes), &datamodel.DocumentConfiguration{
-		BasePath:                specDir,
-		ExtractRefsSequentially: true,
-		Logger: slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{
-			Level: slog.LevelWarn,
-		})),
-	})
+	if len(os.Args) < 2 {
+		log.Fatalf("Usage: %s <path-to-proxy-spec> [<path-to-new-spec>]\n", os.Args[0])
+	}
+
+	bytes, _, _, err := proxy.CompileByte(context.Background(), specBytes, specDir)
 	if err != nil {
-		log.Fatalln("fail to load openapi spec:", err)
-	}
-	docv3, errs := doc.BuildV3Model()
-	if len(errs) > 0 {
-		log.Fatalln("fail to load openapi spec as v3:", errs)
+		log.Fatalln("fail to bundle file:", err)
 	}
 
-	v, p := docv3.Model.Paths.PathItems.Delete("/tenants/{tenant-id}/profiles")
-	if !p {
-		log.Fatalln("path doesn't exists")
+	dst := ""
+	if len(os.Args) > 2 {
+		dst = os.Args[2]
 	}
-	var idx int
-	for i, param := range v.Post.Parameters {
-		if param.Name != "tenant-id" {
-			continue
+	switch dst {
+	case "":
+		if _, err := os.Stdout.Write(bytes); err != nil {
+			log.Fatalln("fail to write stdout:", err)
 		}
-		idx = i
+	default:
+		if err := os.WriteFile(dst, bytes, 0644); err != nil {
+			log.Fatalln("fail to write file:", err)
+		}
 	}
-	v.Post.Parameters = append(v.Post.Parameters[:idx], v.Post.Parameters[idx+1:]...)
-	v.Post.Parameters = append(v.Post.Parameters, &v3.Parameter{
-		Name: "test",
-		In:   "path",
-	})
-	docv3.Model.Paths.PathItems.Set("/profiles", v)
 
-	b, doc, docv3, errs := doc.RenderAndReload()
-	if len(errs) > 0 {
-		log.Fatalln("fail to rerender openapi spec:", errs)
-	}
-	os.Stdout.Write(b)
 }
