@@ -1,0 +1,44 @@
+openapi: "3.0.0"
+info:
+  title: "Proxy API"
+  version: "1.0.0"
+servers:
+  - url: "http://localhost"
+paths:
+  "/profiles/{profile-id}":
+    get:
+      operationId: GetProfile
+      parameters:
+        - name: "validate"
+          in: query
+          required: false
+          schema:
+            $ref: "#/components/schemas/ZeroableBoolean"
+      # populate the rest of parameters from an operation defined inside `spec`
+      x-proxy:
+        name: profile
+        path: /tenants/{tenant-id}/profiles/{profile-id}
+        method: get
+        inject:
+          parameters:
+            - name: tenant-id
+              in: path
+  "/validated-profiles/{profile-id}":
+    get:
+      operationId: GetValidatedProfile
+      # populate the rest of parameters from an operation defined inside `spec`
+      x-proxy:
+        name: profile
+        path: /tenants/{tenant-id}/profiles/{profile-id}
+        method: get
+        inject:
+          parameters:
+            - name: tenant-id
+              in: path
+components:
+  schemas:
+    ZeroableBoolean:
+      type: boolean
+  x-proxy:
+    profile:
+      spec: ./spec-profile.yml
