@@ -145,26 +145,29 @@ func CompileByte(ctx context.Context, specBytes []byte, specDir string) (newspec
 		upstreamDocs[doc] = name
 	}
 
-	// copy all schema
+	// attach prefix to alll schema and copy them to proxy document
 	if proxyDocv3.Model.Components == nil {
 		proxyDocv3.Model.Components = &v3.Components{}
 	}
-	for doc, name := range upstreamDocs {
+	for doc, docName := range upstreamDocs {
 		docV3, _ := doc.BuildV3Model()
 		for _, r := range docV3.Index.GetRawReferencesSequenced() {
 			switch {
 			case strings.HasPrefix(r.Definition, "#/components/schemas"):
-				// add prefix on all components
-				refName := name + r.Name
-				ref := "#/components/schemas/" + refName
+				name := docName + r.Name
+				ref := "#/components/schemas/" + name
 				schema := &baselow.Schema{}
-				schema.Build(context.Background(), r.Node, r.Index)
+				err = schema.Build(context.Background(), r.Node, r.Index)
+				if err != nil {
+					return nil, nil, nil, fmt.Errorf("fail to recreate schema: %w", err)
+				}
+
 				r.Node.Content = base.CreateSchemaProxyRef(ref).GetReferenceNode().Content
 
 				if proxyDocv3.Model.Components.Schemas == nil {
 					proxyDocv3.Model.Components.Schemas = &orderedmap.Map[string, *base.SchemaProxy]{}
 				}
-				proxyDocv3.Model.Components.Schemas.Set(refName, base.CreateSchemaProxy(base.NewSchema(schema)))
+				proxyDocv3.Model.Components.Schemas.Set(name, base.CreateSchemaProxy(base.NewSchema(schema)))
 			}
 		}
 	}
