@@ -122,10 +122,14 @@ func CompileByte(ctx context.Context, specBytes []byte, specDir string) (newspec
 			return nil, nil, nil, fmt.Errorf("faill to render and reload openapi doc: %w", err)
 		}
 
-		// inherit path parameter to operation parameter
-		var name string
+		// get name
 		for pop := range popmap {
-			name = pop.GetName()
+			upstreamDocs[doc] = pop.GetName()
+			break
+		}
+
+		// inherit path parameter to operation parameter
+		for pop := range popmap {
 			up, ok := docV3.Model.Paths.PathItems.Get(pop.Path)
 			if !ok {
 				continue
@@ -144,7 +148,6 @@ func CompileByte(ctx context.Context, specBytes []byte, specDir string) (newspec
 			}
 			proxyOperationUpstreamOperations[pop] = uop
 		}
-		upstreamDocs[doc] = name
 	}
 
 	// attach prefix to alll schema and copy them to proxy document
@@ -156,10 +159,10 @@ func CompileByte(ctx context.Context, specBytes []byte, specDir string) (newspec
 
 		seq := docV3.Index.GetRawReferencesSequenced()
 		slices.Reverse(seq)
-		for _, r := range seq {
+		for _, ref := range seq {
 			switch {
-			case strings.HasPrefix(r.Definition, "#/components/responses"):
-				n, _, err, _ := low.LocateRefNodeWithContext(ctx, r.Node, r.Index)
+			case strings.HasPrefix(ref.Definition, "#/components/responses"):
+				n, _, err, _ := low.LocateRefNodeWithContext(ctx, ref.Node, ref.Index)
 				if err != nil {
 					return nil, nil, nil, fmt.Errorf("fail to find repsonse node: %w", err)
 				}
@@ -173,10 +176,10 @@ func CompileByte(ctx context.Context, specBytes []byte, specDir string) (newspec
 					res = v.Value()
 				}
 
-				name := docName + r.Name
-				ref := "#/components/responses/" + name
+				name := docName + ref.Name
+				refname := "#/components/responses/" + name
 
-				r.Node.Content = base.CreateSchemaProxyRef(ref).GetReferenceNode().Content
+				ref.Node.Content = base.CreateSchemaProxyRef(refname).GetReferenceNode().Content
 				docV3.Model.Components.Responses.Set(name, res)
 
 				if proxyDocv3.Model.Components.Schemas == nil {
@@ -185,19 +188,20 @@ func CompileByte(ctx context.Context, specBytes []byte, specDir string) (newspec
 				proxyDocv3.Model.Components.Responses.Set(name, res)
 			}
 		}
-		for _, r := range seq {
+
+		for _, ref := range seq {
 			switch {
-			case strings.HasPrefix(r.Definition, "#/components/schemas"):
+			case strings.HasPrefix(ref.Definition, "#/components/schemas"):
 				schema := &baselow.Schema{}
-				err = schema.Build(context.Background(), r.Node, r.Index)
+				err = schema.Build(context.Background(), ref.Node, ref.Index)
 				if err != nil {
 					return nil, nil, nil, fmt.Errorf("fail to recreate schema: %w", err)
 				}
 
-				name := docName + r.Name
-				ref := "#/components/schemas/" + name
+				name := docName + ref.Name
+				refname := "#/components/schemas/" + name
 
-				r.Node.Content = base.CreateSchemaProxyRef(ref).GetReferenceNode().Content
+				ref.Node.Content = base.CreateSchemaProxyRef(refname).GetReferenceNode().Content
 				docV3.Model.Components.Schemas.Set(name, base.CreateSchemaProxy(base.NewSchema(schema)))
 
 				if proxyDocv3.Model.Components.Schemas == nil {
@@ -239,7 +243,6 @@ func CompileByte(ctx context.Context, specBytes []byte, specDir string) (newspec
 		op.OperationId = opID
 		op.Parameters = opParam
 	}
-
 	by, proxyDoc, proxyDocv3, errs := proxyDoc.RenderAndReload()
 	return by, proxyDoc, proxyDocv3, errors.Join(errs...)
 }
