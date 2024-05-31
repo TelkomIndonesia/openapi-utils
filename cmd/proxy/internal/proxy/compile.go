@@ -55,8 +55,8 @@ func CompileByte(ctx context.Context, specBytes []byte, specDir string) (newspec
 			}
 		}
 	}
-	upstreamDocsOri := map[libopenapi.Document]map[*config.ProxyOperation]*v3.Operation{}
 	proxyOperations := map[*v3.Operation]*config.ProxyOperation{}
+	upstreamDocsOri := map[libopenapi.Document]map[*config.ProxyOperation]*v3.Operation{}
 	for m := range orderedmap.Iterate(ctx, proxyDocv3.Model.Paths.PathItems) {
 		for _, op := range getOperationsMap(m.Value()) {
 			if op.Extensions == nil {
@@ -104,11 +104,15 @@ func CompileByte(ctx context.Context, specBytes []byte, specDir string) (newspec
 		}
 	}
 
-	// rerender upstream document to contains only used operation
+	// rerender upstream document to contains only used operation and duplicated prefixed schema
 	upstreamDocs := map[libopenapi.Document]string{}
 	proxyOperationUpstreamDocs := map[*config.ProxyOperation]libopenapi.Document{}
 	for doc, popmap := range upstreamDocsOri {
 		docV3, _ := doc.BuildV3Model()
+		var docName string
+		for pop := range popmap {
+			docName = pop.GetName()
+		}
 
 		// delete unused operation
 		opmap := map[*v3.Operation]struct{}{}
@@ -125,24 +129,7 @@ func CompileByte(ctx context.Context, specBytes []byte, specDir string) (newspec
 			}
 		}
 
-		// rerender
-		_, doc, docV3, errs = doc.RenderAndReload()
-		if err := errors.Join(errs...); err != nil {
-			return nil, nil, nil, fmt.Errorf("faill to render and reload openapi doc: %w", err)
-		}
-
-		for pop := range popmap {
-			upstreamDocs[doc] = pop.GetName()
-			proxyOperationUpstreamDocs[pop] = doc
-		}
-	}
-
-	// attach prefix to all components and copy them to proxy document
-	for doc, docName := range upstreamDocs {
-		docV3, _ := doc.BuildV3Model()
-
-		// create duplicated schemas with prefix
-		schemas := map[string]string{}
+		// copy schema and add prefix
 		for _, ref := range docV3.Index.GetRawReferencesSequenced() {
 			switch {
 			case strings.HasPrefix(ref.Definition, "#/components/schemas"):
@@ -153,25 +140,29 @@ func CompileByte(ctx context.Context, specBytes []byte, specDir string) (newspec
 				}
 
 				name := docName + ref.Name
-				refname := "#/components/schemas/" + name
-				schemas[ref.Definition] = refname
 				docV3.Model.Components.Schemas.Set(name, base.CreateSchemaProxy(base.NewSchema(schema)))
 			}
 		}
-		_, ndoc, _, errs := doc.RenderAndReload()
+
+		// rerender
+		_, doc, docV3, errs = doc.RenderAndReload()
 		if err := errors.Join(errs...); err != nil {
-			return nil, nil, nil, fmt.Errorf("fail to render and reload: %w", err)
+			return nil, nil, nil, fmt.Errorf("faill to render and reload openapi doc: %w", err)
 		}
 
-		// copy components
-		ndocV3, _ := ndoc.BuildV3Model()
-		for _, ref := range ndocV3.Index.GetRawReferencesSequenced() {
+		// store the result
+		upstreamDocs[doc] = docName
+		for pop := range popmap {
+			proxyOperationUpstreamDocs[pop] = doc
+		}
+	}
+
+	// attach prefix to all components and copy them to proxy document
+	for doc, docName := range upstreamDocs {
+		docV3, _ := doc.BuildV3Model()
+		for _, ref := range docV3.Index.GetRawReferencesSequenced() {
 			switch {
 			case strings.HasPrefix(ref.Definition, "#/components/schemas"):
-				if _, ok := schemas[ref.Definition]; !ok {
-					continue
-				}
-
 				schema := &baselow.Schema{}
 				err = schema.Build(context.Background(), ref.Node, ref.Index)
 				if err != nil {
@@ -194,7 +185,7 @@ func CompileByte(ctx context.Context, specBytes []byte, specDir string) (newspec
 				lres := &v3low.Response{}
 				lres.Build(ctx, nil, n, ref.Index)
 				res := v3.NewResponse(lres)
-				for v := range orderedmap.Iterate(ctx, ndocV3.Model.Components.Responses) {
+				for v := range orderedmap.Iterate(ctx, docV3.Model.Components.Responses) {
 					if v.Value() == nil || v.Value().GoLow() == nil || v.Value().GoLow().RootNode != n {
 						continue
 					}
@@ -205,20 +196,9 @@ func CompileByte(ctx context.Context, specBytes []byte, specDir string) (newspec
 				refname := "#/components/responses/" + name
 
 				ref.Node.Content = base.CreateSchemaProxyRef(refname).GetReferenceNode().Content
-				ndocV3.Model.Components.Responses.Set(name, res)
+				docV3.Model.Components.Responses.Set(name, res)
 				proxyDocv3.Model.Components.Responses.Set(name, res)
 			}
-		}
-		_, ndoc, _, errs = ndoc.RenderAndReload()
-		if err := errors.Join(errs...); err != nil {
-			return nil, nil, nil, fmt.Errorf("fail to render and reload: %w", err)
-		}
-
-		for pop, pdoc := range proxyOperationUpstreamDocs {
-			if doc != pdoc {
-				continue
-			}
-			proxyOperationUpstreamDocs[pop] = ndoc
 		}
 	}
 
