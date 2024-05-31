@@ -31,7 +31,17 @@ func CompileByte(ctx context.Context, specBytes []byte, specDir string) (newspec
 	if err = errors.Join(errs...); err != nil {
 		return nil, nil, nil, fmt.Errorf("failed to create openapi v3 document: %w", err)
 	}
+	if proxyDocv3.Model.Components == nil {
+		proxyDocv3.Model.Components = &v3.Components{}
+	}
+	if proxyDocv3.Model.Components.Schemas == nil {
+		proxyDocv3.Model.Components.Schemas = &orderedmap.Map[string, *base.SchemaProxy]{}
+	}
+	if proxyDocv3.Model.Components.Responses == nil {
+		proxyDocv3.Model.Components.Responses = &orderedmap.Map[string, *v3.Response]{}
+	}
 
+	// build the proxy
 	proxies := map[string]*config.Proxy{}
 	if proxyDocv3.Model.Components.Extensions != nil {
 		ex, ok := proxyDocv3.Model.Components.Extensions.Get("x-proxy")
@@ -45,7 +55,6 @@ func CompileByte(ctx context.Context, specBytes []byte, specDir string) (newspec
 			}
 		}
 	}
-
 	upstreamDocsOri := map[libopenapi.Document]map[*config.ProxyOperation]*v3.Operation{}
 	proxyOperations := map[*v3.Operation]*config.ProxyOperation{}
 	for m := range orderedmap.Iterate(ctx, proxyDocv3.Model.Paths.PathItems) {
@@ -123,20 +132,12 @@ func CompileByte(ctx context.Context, specBytes []byte, specDir string) (newspec
 		}
 
 		for pop := range popmap {
-			proxyOperationUpstreamDocs[pop] = doc
-		}
-
-		// get name
-		for pop := range popmap {
 			upstreamDocs[doc] = pop.GetName()
-			break
+			proxyOperationUpstreamDocs[pop] = doc
 		}
 	}
 
 	// attach prefix to alll schema and copy them to proxy document
-	if proxyDocv3.Model.Components == nil {
-		proxyDocv3.Model.Components = &v3.Components{}
-	}
 	for doc, docName := range upstreamDocs {
 		docV3, _ := doc.BuildV3Model()
 
@@ -182,10 +183,6 @@ func CompileByte(ctx context.Context, specBytes []byte, specDir string) (newspec
 				refname := "#/components/schemas/" + name
 
 				ref.Node.Content = base.CreateSchemaProxyRef(refname).GetReferenceNode().Content
-
-				if proxyDocv3.Model.Components.Schemas == nil {
-					proxyDocv3.Model.Components.Schemas = &orderedmap.Map[string, *base.SchemaProxy]{}
-				}
 				proxyDocv3.Model.Components.Schemas.Set(name, base.CreateSchemaProxy(hschema))
 
 			case strings.HasPrefix(ref.Definition, "#/components/responses"):
@@ -209,10 +206,6 @@ func CompileByte(ctx context.Context, specBytes []byte, specDir string) (newspec
 
 				ref.Node.Content = base.CreateSchemaProxyRef(refname).GetReferenceNode().Content
 				ndocV3.Model.Components.Responses.Set(name, res)
-
-				if proxyDocv3.Model.Components.Schemas == nil {
-					proxyDocv3.Model.Components.Schemas = &orderedmap.Map[string, *base.SchemaProxy]{}
-				}
 				proxyDocv3.Model.Components.Responses.Set(name, res)
 			}
 		}
@@ -257,6 +250,7 @@ func CompileByte(ctx context.Context, specBytes []byte, specDir string) (newspec
 			uop.Parameters = append(uop.Parameters, p)
 		}
 
+		// copy operation
 		opParam := op.Parameters
 		opID := op.OperationId
 
