@@ -80,6 +80,10 @@ paths:
             responses:
                 "204":
                     description: no content
+                "400":
+                    description: bad request
+                "500":
+                    description: server error
 components:
     schemas:
         UUID:
@@ -129,7 +133,7 @@ components:
                     schema:
                         $ref: "#/components/schemas/Profile"
         ProfileNotFound:
-            description: "success"
+            description: "not found"
             content:
                 "application/json":
                     schema:

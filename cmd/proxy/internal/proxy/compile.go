@@ -137,7 +137,7 @@ func CompileByte(ctx context.Context, specBytes []byte, specDir string) (newspec
 		}
 	}
 
-	// attach prefix to alll schema and copy them to proxy document
+	// attach prefix to all components and copy them to proxy document
 	for doc, docName := range upstreamDocs {
 		docV3, _ := doc.BuildV3Model()
 
@@ -163,7 +163,7 @@ func CompileByte(ctx context.Context, specBytes []byte, specDir string) (newspec
 			return nil, nil, nil, fmt.Errorf("fail to render and reload: %w", err)
 		}
 
-		// copy schemas
+		// copy components
 		ndocV3, _ := ndoc.BuildV3Model()
 		for _, ref := range ndocV3.Index.GetRawReferencesSequenced() {
 			switch {
