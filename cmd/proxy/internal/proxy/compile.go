@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"path"
-	"slices"
 	"strings"
 
 	"github.com/pb33f/libopenapi"
@@ -13,6 +12,7 @@ import (
 	v3 "github.com/pb33f/libopenapi/datamodel/high/v3"
 	"github.com/pb33f/libopenapi/datamodel/low"
 	baselow "github.com/pb33f/libopenapi/datamodel/low/base"
+	v3low "github.com/pb33f/libopenapi/datamodel/low/v3"
 	"github.com/pb33f/libopenapi/orderedmap"
 	"github.com/telkomindonesia/openapi-utils/cmd/proxy/internal/proxy/config"
 )
@@ -97,7 +97,7 @@ func CompileByte(ctx context.Context, specBytes []byte, specDir string) (newspec
 
 	// rerender upstream document to contains only used operation
 	upstreamDocs := map[libopenapi.Document]string{}
-	proxyOperationUpstreamOperations := map[*config.ProxyOperation]*v3.Operation{}
+	proxyOperationUpstreamDocs := map[*config.ProxyOperation]libopenapi.Document{}
 	for doc, popmap := range upstreamDocsOri {
 		docV3, _ := doc.BuildV3Model()
 
@@ -122,31 +122,14 @@ func CompileByte(ctx context.Context, specBytes []byte, specDir string) (newspec
 			return nil, nil, nil, fmt.Errorf("faill to render and reload openapi doc: %w", err)
 		}
 
+		for pop := range popmap {
+			proxyOperationUpstreamDocs[pop] = doc
+		}
+
 		// get name
 		for pop := range popmap {
 			upstreamDocs[doc] = pop.GetName()
 			break
-		}
-
-		// inherit path parameter to operation parameter
-		for pop := range popmap {
-			up, ok := docV3.Model.Paths.PathItems.Get(pop.Path)
-			if !ok {
-				continue
-			}
-
-			uop := getOperation(up, pop.Method)
-			uopParams := map[parameterKey]struct{}{}
-			for _, p := range uop.Parameters {
-				uopParams[parameterKey{name: p.Name, in: p.In}] = struct{}{}
-			}
-			for _, p := range up.Parameters {
-				if _, ok := uopParams[parameterKey{name: p.Name, in: p.In}]; ok {
-					continue
-				}
-				uop.Parameters = append(uop.Parameters, p)
-			}
-			proxyOperationUpstreamOperations[pop] = uop
 		}
 	}
 
@@ -157,39 +140,9 @@ func CompileByte(ctx context.Context, specBytes []byte, specDir string) (newspec
 	for doc, docName := range upstreamDocs {
 		docV3, _ := doc.BuildV3Model()
 
-		seq := docV3.Index.GetRawReferencesSequenced()
-		slices.Reverse(seq)
-		for _, ref := range seq {
-			switch {
-			case strings.HasPrefix(ref.Definition, "#/components/responses"):
-				n, _, err, _ := low.LocateRefNodeWithContext(ctx, ref.Node, ref.Index)
-				if err != nil {
-					return nil, nil, nil, fmt.Errorf("fail to find repsonse node: %w", err)
-				}
-
-				var res *v3.Response
-				for v := range orderedmap.Iterate(ctx, docV3.Model.Components.Responses) {
-					r := v.Value()
-					if r == nil || r.GoLow() == nil || r.GoLow().RootNode != n {
-						continue
-					}
-					res = v.Value()
-				}
-
-				name := docName + ref.Name
-				refname := "#/components/responses/" + name
-
-				ref.Node.Content = base.CreateSchemaProxyRef(refname).GetReferenceNode().Content
-				docV3.Model.Components.Responses.Set(name, res)
-
-				if proxyDocv3.Model.Components.Schemas == nil {
-					proxyDocv3.Model.Components.Schemas = &orderedmap.Map[string, *base.SchemaProxy]{}
-				}
-				proxyDocv3.Model.Components.Responses.Set(name, res)
-			}
-		}
-
-		for _, ref := range seq {
+		// create duplicated schemas with prefix
+		schemas := map[string]string{}
+		for _, ref := range docV3.Index.GetRawReferencesSequenced() {
 			switch {
 			case strings.HasPrefix(ref.Definition, "#/components/schemas"):
 				schema := &baselow.Schema{}
@@ -200,23 +153,108 @@ func CompileByte(ctx context.Context, specBytes []byte, specDir string) (newspec
 
 				name := docName + ref.Name
 				refname := "#/components/schemas/" + name
+				schemas[ref.Definition] = refname
+				docV3.Model.Components.Schemas.Set(name, base.CreateSchemaProxy(base.NewSchema(schema)))
+			}
+		}
+		_, ndoc, _, errs := doc.RenderAndReload()
+		if err := errors.Join(errs...); err != nil {
+			return nil, nil, nil, fmt.Errorf("fail to render and reload: %w", err)
+		}
+
+		// copy schemas
+		ndocV3, _ := ndoc.BuildV3Model()
+		for _, ref := range ndocV3.Index.GetRawReferencesSequenced() {
+			switch {
+			case strings.HasPrefix(ref.Definition, "#/components/schemas"):
+				if _, ok := schemas[ref.Definition]; !ok {
+					continue
+				}
+
+				schema := &baselow.Schema{}
+				err = schema.Build(context.Background(), ref.Node, ref.Index)
+				if err != nil {
+					return nil, nil, nil, fmt.Errorf("fail to recreate schema: %w", err)
+				}
+				hschema := base.NewSchema(schema)
+
+				name := docName + ref.Name
+				refname := "#/components/schemas/" + name
 
 				ref.Node.Content = base.CreateSchemaProxyRef(refname).GetReferenceNode().Content
-				docV3.Model.Components.Schemas.Set(name, base.CreateSchemaProxy(base.NewSchema(schema)))
 
 				if proxyDocv3.Model.Components.Schemas == nil {
 					proxyDocv3.Model.Components.Schemas = &orderedmap.Map[string, *base.SchemaProxy]{}
 				}
-				proxyDocv3.Model.Components.Schemas.Set(name, base.CreateSchemaProxy(base.NewSchema(schema)))
+				proxyDocv3.Model.Components.Schemas.Set(name, base.CreateSchemaProxy(hschema))
+
+			case strings.HasPrefix(ref.Definition, "#/components/responses"):
+				n, _, err, _ := low.LocateRefNodeWithContext(ctx, ref.Node, ref.Index)
+				if err != nil {
+					return nil, nil, nil, fmt.Errorf("fail to find repsonse node: %w", err)
+				}
+
+				lres := &v3low.Response{}
+				lres.Build(ctx, nil, n, ref.Index)
+				res := v3.NewResponse(lres)
+				for v := range orderedmap.Iterate(ctx, ndocV3.Model.Components.Responses) {
+					if v.Value() == nil || v.Value().GoLow() == nil || v.Value().GoLow().RootNode != n {
+						continue
+					}
+					res.Description = v.Value().Description
+				}
+
+				name := docName + ref.Name
+				refname := "#/components/responses/" + name
+
+				ref.Node.Content = base.CreateSchemaProxyRef(refname).GetReferenceNode().Content
+				ndocV3.Model.Components.Responses.Set(name, res)
+
+				if proxyDocv3.Model.Components.Schemas == nil {
+					proxyDocv3.Model.Components.Schemas = &orderedmap.Map[string, *base.SchemaProxy]{}
+				}
+				proxyDocv3.Model.Components.Responses.Set(name, res)
 			}
+		}
+		_, ndoc, _, errs = ndoc.RenderAndReload()
+		if err := errors.Join(errs...); err != nil {
+			return nil, nil, nil, fmt.Errorf("fail to render and reload: %w", err)
+		}
+
+		for pop, pdoc := range proxyOperationUpstreamDocs {
+			if doc != pdoc {
+				continue
+			}
+			proxyOperationUpstreamDocs[pop] = ndoc
 		}
 	}
 
 	// compile proxy document
 	for op, pop := range proxyOperations {
-		uop, ok := proxyOperationUpstreamOperations[pop]
+		ud, ok := proxyOperationUpstreamDocs[pop]
 		if !ok {
 			continue
+		}
+
+		// find upstream path operation, with parameter inherited from upstream path
+		udv3, _ := ud.BuildV3Model()
+		up, ok := udv3.Model.Paths.PathItems.Get(pop.Path)
+		if !ok {
+			continue
+		}
+		uop := getOperation(up, pop.Method)
+		if uop == nil {
+			continue
+		}
+		uopParams := map[parameterKey]struct{}{}
+		for _, p := range uop.Parameters {
+			uopParams[parameterKey{name: p.Name, in: p.In}] = struct{}{}
+		}
+		for _, p := range up.Parameters {
+			if _, ok := uopParams[parameterKey{name: p.Name, in: p.In}]; ok {
+				continue
+			}
+			uop.Parameters = append(uop.Parameters, p)
 		}
 
 		opParam := op.Parameters
@@ -240,8 +278,9 @@ func CompileByte(ctx context.Context, specBytes []byte, specDir string) (newspec
 			opParam = append(opParam, p)
 		}
 		*op = *uop
-		op.OperationId = opID
+
 		op.Parameters = opParam
+		op.OperationId = opID
 	}
 	by, proxyDoc, proxyDocv3, errs := proxyDoc.RenderAndReload()
 	return by, proxyDoc, proxyDocv3, errors.Join(errs...)
