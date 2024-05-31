@@ -5,11 +5,13 @@ import (
 	"errors"
 	"fmt"
 	"path"
+	"slices"
 	"strings"
 
 	"github.com/pb33f/libopenapi"
 	"github.com/pb33f/libopenapi/datamodel/high/base"
 	v3 "github.com/pb33f/libopenapi/datamodel/high/v3"
+	"github.com/pb33f/libopenapi/datamodel/low"
 	baselow "github.com/pb33f/libopenapi/datamodel/low/base"
 	"github.com/pb33f/libopenapi/orderedmap"
 	"github.com/telkomindonesia/openapi-utils/cmd/proxy/internal/proxy/config"
@@ -151,18 +153,52 @@ func CompileByte(ctx context.Context, specBytes []byte, specDir string) (newspec
 	}
 	for doc, docName := range upstreamDocs {
 		docV3, _ := doc.BuildV3Model()
-		for _, r := range docV3.Index.GetRawReferencesSequenced() {
+
+		seq := docV3.Index.GetRawReferencesSequenced()
+		slices.Reverse(seq)
+		for _, r := range seq {
+			switch {
+			case strings.HasPrefix(r.Definition, "#/components/responses"):
+				n, _, err, _ := low.LocateRefNodeWithContext(ctx, r.Node, r.Index)
+				if err != nil {
+					return nil, nil, nil, fmt.Errorf("fail to find repsonse node: %w", err)
+				}
+
+				var res *v3.Response
+				for v := range orderedmap.Iterate(ctx, docV3.Model.Components.Responses) {
+					r := v.Value()
+					if r == nil || r.GoLow() == nil || r.GoLow().RootNode != n {
+						continue
+					}
+					res = v.Value()
+				}
+
+				name := docName + r.Name
+				ref := "#/components/responses/" + name
+
+				r.Node.Content = base.CreateSchemaProxyRef(ref).GetReferenceNode().Content
+				docV3.Model.Components.Responses.Set(name, res)
+
+				if proxyDocv3.Model.Components.Schemas == nil {
+					proxyDocv3.Model.Components.Schemas = &orderedmap.Map[string, *base.SchemaProxy]{}
+				}
+				proxyDocv3.Model.Components.Responses.Set(name, res)
+			}
+		}
+		for _, r := range seq {
 			switch {
 			case strings.HasPrefix(r.Definition, "#/components/schemas"):
-				name := docName + r.Name
-				ref := "#/components/schemas/" + name
 				schema := &baselow.Schema{}
 				err = schema.Build(context.Background(), r.Node, r.Index)
 				if err != nil {
 					return nil, nil, nil, fmt.Errorf("fail to recreate schema: %w", err)
 				}
 
+				name := docName + r.Name
+				ref := "#/components/schemas/" + name
+
 				r.Node.Content = base.CreateSchemaProxyRef(ref).GetReferenceNode().Content
+				docV3.Model.Components.Schemas.Set(name, base.CreateSchemaProxy(base.NewSchema(schema)))
 
 				if proxyDocv3.Model.Components.Schemas == nil {
 					proxyDocv3.Model.Components.Schemas = &orderedmap.Map[string, *base.SchemaProxy]{}

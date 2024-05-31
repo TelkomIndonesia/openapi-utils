@@ -61,13 +61,15 @@ paths:
             operationId: "GetProfile"
             responses:
                 "200":
-                    description: "success"
-                    content:
-                        "application/json":
-                            schema:
-                                $ref: "#/components/schemas/Profile"
+                    $ref: "#/components/responses/GetProfile"
+                # "200":
+                #     description: "success"
+                #     content:
+                #         "application/json":
+                #             schema:
+                #                 $ref: "#/components/schemas/Profile"
                 "404":
-                    description: not found
+                    $ref: "#/components/responses/ProfileNotFound"
         delete:
             security:
                 - {}
@@ -117,3 +119,18 @@ components:
                     $ref: "#/components/schemas/ZeroableString"
                 dob:
                     $ref: "#/components/schemas/ZeroableTime"
+    responses:
+        GetProfile:
+            description: "success"
+            content:
+                "application/json":
+                    schema:
+                        $ref: "#/components/schemas/Profile"
+        ProfileNotFound:
+            description: "success"
+            content:
+                "application/json":
+                    schema:
+                        properties:
+                            id:
+                                $ref: "#/components/schemas/UUID"
