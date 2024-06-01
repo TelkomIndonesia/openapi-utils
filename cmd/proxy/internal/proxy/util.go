@@ -125,7 +125,7 @@ func setOperation(p *v3.PathItem, method string, val *v3.Operation) {
 	}
 }
 
-func copyComponents(ctx context.Context, src libopenapi.Document, prefix string, dst libopenapi.Document) (nsrc libopenapi.Document, err error) {
+func modCopyComponents(ctx context.Context, src libopenapi.Document, prefix string, dst libopenapi.Document) (nsrc libopenapi.Document, err error) {
 	srcv3, errs := src.BuildV3Model()
 	if err = errors.Join(errs...); err != nil {
 		return nil, fmt.Errorf("fail to build v3 model: %w", err)
@@ -154,31 +154,31 @@ func copyComponents(ctx context.Context, src libopenapi.Document, prefix string,
 	for _, ref := range srcv3.Index.GetRawReferencesSequenced() {
 		switch {
 		case strings.HasPrefix(ref.Definition, "#/components/schemas/"):
-			copySchema(ctx, ref, prefix, dstv3.Model.Components.Schemas)
+			modCopySchema(ctx, ref, prefix, dstv3.Model.Components.Schemas)
 
 		case strings.HasPrefix(ref.Definition, "#/components/parameters/"):
-			copyComponent(ctx, ref, prefix, dstv3.Model.Components.Parameters, v3.NewParameter)
+			modCopyComponent(ctx, ref, prefix, dstv3.Model.Components.Parameters, v3.NewParameter)
 
 		case strings.HasPrefix(ref.Definition, "#/components/requestBodies/"):
-			copyComponent(ctx, ref, prefix, dstv3.Model.Components.RequestBodies, v3.NewRequestBody)
+			modCopyComponent(ctx, ref, prefix, dstv3.Model.Components.RequestBodies, v3.NewRequestBody)
 
 		case strings.HasPrefix(ref.Definition, "#/components/headers/"):
-			copyComponent(ctx, ref, prefix, dstv3.Model.Components.Headers, v3.NewHeader)
+			modCopyComponent(ctx, ref, prefix, dstv3.Model.Components.Headers, v3.NewHeader)
 
 		case strings.HasPrefix(ref.Definition, "#/components/responses/"):
-			copyComponent(ctx, ref, prefix, dstv3.Model.Components.Responses, v3.NewResponse)
+			modCopyComponent(ctx, ref, prefix, dstv3.Model.Components.Responses, v3.NewResponse)
 
 		case strings.HasPrefix(ref.Definition, "#/components/securitySchemes/"):
-			copyComponent(ctx, ref, prefix, dstv3.Model.Components.SecuritySchemes, v3.NewSecurityScheme)
+			modCopyComponent(ctx, ref, prefix, dstv3.Model.Components.SecuritySchemes, v3.NewSecurityScheme)
 
 		case strings.HasPrefix(ref.Definition, "#/components/examples/"):
-			copyComponent(ctx, ref, prefix, dstv3.Model.Components.Examples, base.NewExample)
+			modCopyComponent(ctx, ref, prefix, dstv3.Model.Components.Examples, base.NewExample)
 
 		case strings.HasPrefix(ref.Definition, "#/components/links/"):
-			copyComponent(ctx, ref, prefix, dstv3.Model.Components.Links, v3.NewLink)
+			modCopyComponent(ctx, ref, prefix, dstv3.Model.Components.Links, v3.NewLink)
 
 		case strings.HasPrefix(ref.Definition, "#/components/callbacks/"):
-			copyComponent(ctx, ref, prefix, dstv3.Model.Components.Callbacks, v3.NewCallback)
+			modCopyComponent(ctx, ref, prefix, dstv3.Model.Components.Callbacks, v3.NewCallback)
 		}
 	}
 
@@ -200,7 +200,7 @@ func duplicateSchema(ctx context.Context,
 	return
 }
 
-func copySchema(ctx context.Context,
+func modCopySchema(ctx context.Context,
 	ref *index.Reference,
 	prefix string,
 	m *orderedmap.Map[string, *base.SchemaProxy],
@@ -217,7 +217,7 @@ func copySchema(ctx context.Context,
 	return
 }
 
-func copyComponent[B any, L low.Buildable[B], H high.GoesLow[L]](
+func modCopyComponent[B any, L low.Buildable[B], H high.GoesLow[L]](
 	ctx context.Context,
 	ref *index.Reference,
 	prefix string,

@@ -109,7 +109,7 @@ func CompileByte(ctx context.Context, specBytes []byte, specDir string) (newspec
 
 		// copy components with new prefix
 		prefix := firstKey(popmap).GetName()
-		doc, err := copyComponents(ctx, doc, prefix, proxyDoc)
+		doc, err := modCopyComponents(ctx, doc, prefix, proxyDoc)
 		if err != nil {
 			return nil, nil, nil, fmt.Errorf("fail to copy components : %w", err)
 		}
