@@ -9,6 +9,8 @@ info:
 servers:
     - url: "https://profile:8443"
     - url: "https://localhost:8443"
+security:
+    - {}
 paths:
     /tenants/{tenant-id}/profiles:
         parameters:
@@ -18,8 +20,6 @@ paths:
               schema:
                   $ref: "#/components/schemas/UUID"
         post:
-            security:
-                - {}
             summary: "create profile"
             operationId: PostProfile
             parameters:
@@ -68,6 +68,20 @@ paths:
                                 properties:
                                     message:
                                         $ref: "#/components/schemas/ZeroableString"
+        put:
+            summary: "Create/Update profile"
+            operationId: PutProfile
+            requestBody:
+                $ref: "#/components/requestBodies/Profile"
+            responses:
+                "201":
+                    description: success
+                    content:
+                        "application/json":
+                            schema:
+                                $ref: "#/components/schemas/Profile"
+                "400":
+                    description: bad request
         delete:
             security:
                 - {}
@@ -124,6 +138,9 @@ components:
     responses:
         Profile:
             description: "success"
+            headers:
+                TraceID:
+                    $ref: "#/components/headers/TraceID"
             content:
                 "application/json":
                     schema:
@@ -145,3 +162,16 @@ components:
             required: true
             schema:
                 $ref: "#/components/schemas/UUID"
+
+    requestBodies:
+        Profile:
+            required: true
+            content:
+                application/json:
+                    schema:
+                        $ref: "#/components/schemas/Profile"
+
+    headers:
+        TraceID:
+            schema:
+                $ref: "#/components/schemas/ZeroableString"

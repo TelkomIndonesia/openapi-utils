@@ -23,6 +23,16 @@ paths:
           parameters:
             - name: tenant-id
               in: path
+    put:
+      operationId: PutProfile
+      x-proxy:
+        name: profile
+        path: /tenants/{tenant-id}/profiles/{profile-id}
+        method: put
+        inject:
+          parameters:
+            - name: tenant-id
+              in: path
   "/validated-profiles/{profile-id}":
     get:
       operationId: GetValidatedProfile
