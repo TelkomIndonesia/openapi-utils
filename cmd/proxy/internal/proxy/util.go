@@ -1,11 +1,17 @@
 package proxy
 
 import (
+	"context"
+	"fmt"
 	"strings"
 
 	"github.com/pb33f/libopenapi"
+	"github.com/pb33f/libopenapi/datamodel/high"
 	"github.com/pb33f/libopenapi/datamodel/high/base"
 	v3 "github.com/pb33f/libopenapi/datamodel/high/v3"
+	"github.com/pb33f/libopenapi/datamodel/low"
+	baselow "github.com/pb33f/libopenapi/datamodel/low/base"
+	"github.com/pb33f/libopenapi/index"
 	"github.com/pb33f/libopenapi/orderedmap"
 	"gopkg.in/yaml.v3"
 )
@@ -136,5 +142,83 @@ func copyParameters(src []*v3.Parameter, add ...*v3.Parameter) (dst []*v3.Parame
 		}
 		dst = append(dst, p)
 	}
+	return
+}
+
+func duplicateSchema(ctx context.Context, ref *index.Reference, prefix string, m *orderedmap.Map[string, *base.SchemaProxy]) (err error) {
+	schemaProxy, err := baselow.ExtractSchema(ctx, ref.Node, ref.Index)
+	if err != nil {
+		return fmt.Errorf("fail to recreate schema: %w", err)
+	}
+
+	name := prefix + ref.Name
+	m.Set(name, base.NewSchemaProxy(schemaProxy))
+	return
+}
+
+func copyComponents(ctx context.Context, src *libopenapi.DocumentModel[v3.Document], prefix string, dst *libopenapi.DocumentModel[v3.Document]) {
+	for _, ref := range src.Index.GetRawReferencesSequenced() {
+		switch {
+		case strings.HasPrefix(ref.Definition, "#/components/schemas/"):
+			copySchema(ctx, ref, prefix, dst.Model.Components.Schemas)
+
+		case strings.HasPrefix(ref.Definition, "#/components/parameters/"):
+			copyComponent(ctx, ref, prefix, dst.Model.Components.Parameters, v3.NewParameter)
+
+		case strings.HasPrefix(ref.Definition, "#/components/requestBodies/"):
+			copyComponent(ctx, ref, prefix, dst.Model.Components.RequestBodies, v3.NewRequestBody)
+
+		case strings.HasPrefix(ref.Definition, "#/components/headers/"):
+			copyComponent(ctx, ref, prefix, dst.Model.Components.Headers, v3.NewHeader)
+
+		case strings.HasPrefix(ref.Definition, "#/components/responses/"):
+			copyComponent(ctx, ref, prefix, dst.Model.Components.Responses, v3.NewResponse)
+
+		case strings.HasPrefix(ref.Definition, "#/components/securitySchemes/"):
+			copyComponent(ctx, ref, prefix, dst.Model.Components.SecuritySchemes, v3.NewSecurityScheme)
+
+		case strings.HasPrefix(ref.Definition, "#/components/examples/"):
+			copyComponent(ctx, ref, prefix, dst.Model.Components.Examples, base.NewExample)
+
+		case strings.HasPrefix(ref.Definition, "#/components/links/"):
+			copyComponent(ctx, ref, prefix, dst.Model.Components.Links, v3.NewLink)
+
+		case strings.HasPrefix(ref.Definition, "#/components/callbacks/"):
+			copyComponent(ctx, ref, prefix, dst.Model.Components.Callbacks, v3.NewCallback)
+		}
+	}
+}
+
+func copySchema(ctx context.Context, ref *index.Reference, prefix string, m *orderedmap.Map[string, *base.SchemaProxy]) (err error) {
+	schemaProxy, err := baselow.ExtractSchema(ctx, ref.Node, ref.Index)
+	if err != nil {
+		return fmt.Errorf("fail to recreate schema: %w", err)
+	}
+
+	name := prefix + ref.Name
+	refname := strings.TrimSuffix(ref.Definition, ref.Name) + name
+	ref.Node.Content = base.CreateSchemaProxyRef(refname).GetReferenceNode().Content
+	m.Set(name, base.NewSchemaProxy(schemaProxy))
+	return
+}
+
+func copyComponent[B any, L low.Buildable[B], H high.GoesLow[L]](
+	ctx context.Context,
+	ref *index.Reference,
+	prefix string,
+	m *orderedmap.Map[string, H],
+	fnew func(L) H,
+) (err error) {
+	v, err := low.ExtractObject[L](ctx, "", ref.Node, ref.Index)
+	if err != nil {
+		return fmt.Errorf("fail to extract object: %w", err)
+	}
+	v.Value.Build(ctx, v.KeyNode, v.ValueNode, ref.Index)
+
+	name := prefix + ref.Name
+	refname := strings.TrimSuffix(ref.Definition, ref.Name) + name
+	ref.Node.Content = base.CreateSchemaProxyRef(refname).GetReferenceNode().Content
+	m.Set(name, fnew(v.Value))
+
 	return
 }
