@@ -13,8 +13,8 @@ paths:
     /tenants/{tenant-id}/profiles:
         parameters:
             - name: tenant-id
-              in: path
               required: true
+              in: path
               schema:
                   $ref: "#/components/schemas/UUID"
         post:
@@ -49,11 +49,7 @@ paths:
               in: path
               schema:
                   $ref: "#/components/schemas/UUID"
-            - name: profile-id
-              in: path
-              required: true
-              schema:
-                  $ref: "#/components/schemas/UUID"
+            - $ref: "#/components/parameters/ProfileID"
         get:
             security:
                 - {}
@@ -133,6 +129,8 @@ components:
                     schema:
                         $ref: "#/components/schemas/Profile"
         ProfileNotFound:
+            $ref: "#/components/responses/Error"
+        Error:
             description: "not found"
             content:
                 "application/json":
@@ -140,3 +138,10 @@ components:
                         properties:
                             id:
                                 $ref: "#/components/schemas/UUID"
+    parameters:
+        ProfileID:
+            name: profile-id
+            in: path
+            required: true
+            schema:
+                $ref: "#/components/schemas/UUID"

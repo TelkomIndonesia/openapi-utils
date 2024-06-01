@@ -40,6 +40,9 @@ func CompileByte(ctx context.Context, specBytes []byte, specDir string) (newspec
 	if proxyDocv3.Model.Components.Responses == nil {
 		proxyDocv3.Model.Components.Responses = &orderedmap.Map[string, *v3.Response]{}
 	}
+	if proxyDocv3.Model.Components.Parameters == nil {
+		proxyDocv3.Model.Components.Parameters = &orderedmap.Map[string, *v3.Parameter]{}
+	}
 
 	// build the proxy
 	proxies := map[string]*config.Proxy{}
@@ -172,7 +175,6 @@ func CompileByte(ctx context.Context, specBytes []byte, specDir string) (newspec
 
 				name := docName + ref.Name
 				refname := "#/components/schemas/" + name
-
 				ref.Node.Content = base.CreateSchemaProxyRef(refname).GetReferenceNode().Content
 				proxyDocv3.Model.Components.Schemas.Set(name, base.CreateSchemaProxy(hschema))
 
@@ -182,22 +184,48 @@ func CompileByte(ctx context.Context, specBytes []byte, specDir string) (newspec
 					return nil, nil, nil, fmt.Errorf("fail to find repsonse node: %w", err)
 				}
 
-				lres := &v3low.Response{}
-				lres.Build(ctx, nil, n, ref.Index)
-				res := v3.NewResponse(lres)
+				var oldres *v3low.Response
 				for v := range orderedmap.Iterate(ctx, docV3.Model.Components.Responses) {
 					if v.Value() == nil || v.Value().GoLow() == nil || v.Value().GoLow().RootNode != n {
 						continue
 					}
-					res.Description = v.Value().Description
+					oldres = v.Value().GoLow()
 				}
+
+				lres := &v3low.Response{}
+				lres.Build(ctx, oldres.KeyNode, oldres.RootNode, ref.Index)
+				lres.Description = oldres.Description
+				res := v3.NewResponse(lres)
 
 				name := docName + ref.Name
 				refname := "#/components/responses/" + name
-
 				ref.Node.Content = base.CreateSchemaProxyRef(refname).GetReferenceNode().Content
 				docV3.Model.Components.Responses.Set(name, res)
 				proxyDocv3.Model.Components.Responses.Set(name, res)
+
+			case strings.HasPrefix(ref.Definition, "#/components/parameters"):
+				n, _, err, _ := low.LocateRefNodeWithContext(ctx, ref.Node, ref.Index)
+				if err != nil {
+					return nil, nil, nil, fmt.Errorf("fail to find repsonse node: %w", err)
+				}
+
+				var oldpar *v3low.Parameter
+				for v := range orderedmap.Iterate(ctx, docV3.Model.Components.Parameters) {
+					if v.Value() == nil || v.Value().GoLow() == nil || v.Value().GoLow().RootNode != n {
+						continue
+					}
+					oldpar = v.Value().GoLow()
+				}
+
+				lparam := &v3low.Parameter{}
+				lparam.Build(ctx, oldpar.KeyNode, oldpar.RootNode, ref.Index)
+				param := v3.NewParameter(lparam)
+				name := docName + ref.Name
+				refname := "#/components/parameters/" + name
+
+				ref.Node.Content = base.CreateSchemaProxyRef(refname).GetReferenceNode().Content
+				docV3.Model.Components.Parameters.Set(name, param)
+				proxyDocv3.Model.Components.Parameters.Set(name, param)
 			}
 		}
 	}
