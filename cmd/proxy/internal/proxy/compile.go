@@ -37,7 +37,7 @@ func CompileByte(ctx context.Context, specBytes []byte, specDir string) (newspec
 				return nil, nil, nil, fmt.Errorf("fail to decode `x-proxy` component :%w", err)
 			}
 			for k, v := range proxies {
-				v.Name = &k
+				v.Name = k
 				v.Spec = path.Join(specDir, v.Spec)
 			}
 		}
@@ -61,10 +61,10 @@ func CompileByte(ctx context.Context, specBytes []byte, specDir string) (newspec
 				return nil, nil, nil, fmt.Errorf("fail to decode Proxy Operation : %w", err)
 			}
 
-			if pop.Spec == "" && pop.Proxy != nil && pop.Proxy.Name != nil {
-				pop.Proxy, ok = proxies[*pop.Name]
+			if pop.Spec == "" && pop.Proxy != nil && pop.Proxy.Name != "" {
+				pop.Proxy, ok = proxies[pop.Name]
 				if !ok {
-					return nil, nil, nil, fmt.Errorf("invalid proxy definition for %s: no spec is provided", *pop.Proxy.Name)
+					return nil, nil, nil, fmt.Errorf("invalid proxy definition for %s: no spec is provided", pop.Proxy.Name)
 				}
 			} else {
 				pop.Spec = path.Join(specDir, pop.Spec)

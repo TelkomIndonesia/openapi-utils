@@ -7,7 +7,6 @@ import (
 	"path"
 	"regexp"
 	"strings"
-	"sync"
 
 	"github.com/pb33f/libopenapi"
 	v3 "github.com/pb33f/libopenapi/datamodel/high/v3"
@@ -16,37 +15,31 @@ import (
 type Proxies map[string]Proxy
 
 type Proxy struct {
-	Name *string `json:"name" yaml:"name"`
-	Spec string  `json:"spec" yaml:"spec"`
+	Name string `json:"name" yaml:"name"`
+	Spec string `json:"spec" yaml:"spec"`
 
-	once  sync.Once
-	doc   libopenapi.Document
-	v3doc *libopenapi.DocumentModel[v3.Document]
+	doc libopenapi.Document
 }
 
 func (p *Proxy) buildOpenapiDocument() (err error) {
-	p.once.Do(func() {
-		var b []byte
-		b, err = os.ReadFile(p.Spec)
-		if err != nil {
-			err = fmt.Errorf("fail to read openapi spec: %w", err)
-			return
-		}
+	var b []byte
+	b, err = os.ReadFile(p.Spec)
+	if err != nil {
+		err = fmt.Errorf("fail to read openapi spec: %w", err)
+		return
+	}
 
-		p.doc, err = libopenapi.NewDocument(b)
-		if err != nil {
-			err = fmt.Errorf("fail to build openapi doc: %w", err)
-			return
-		}
+	doc, err := libopenapi.NewDocument(b)
+	if err != nil {
+		return fmt.Errorf("fail to build openapi doc: %w", err)
+	}
 
-		d, errs := p.doc.BuildV3Model()
-		if err = errors.Join(errs...); err != nil {
-			err = fmt.Errorf("fail to build v3 openapi doc: %w", err)
-			return
-		}
+	_, errs := doc.BuildV3Model()
+	if err = errors.Join(errs...); err != nil {
+		return fmt.Errorf("fail to build v3 openapi doc: %w", err)
+	}
 
-		p.v3doc = d
-	})
+	p.doc = doc
 	return
 }
 
@@ -69,7 +62,17 @@ func (p *Proxy) GetOpenAPIV3Doc() (doc *libopenapi.DocumentModel[v3.Document], e
 		}
 	}
 
-	return p.v3doc, nil
+	doc, errs := p.doc.BuildV3Model()
+	err = errors.Join(errs...)
+	return
+}
+
+func (p Proxy) GetName() string {
+	if p.Name == "" {
+		name, _ := strings.CutSuffix(path.Base(p.Spec), path.Ext(p.Spec))
+		return string(nonAlphaNum.ReplaceAll([]byte(name), nil))
+	}
+	return p.Name
 }
 
 type ProxyOperation struct {
@@ -81,14 +84,6 @@ type ProxyOperation struct {
 }
 
 var nonAlphaNum = regexp.MustCompile("[^a-zA-Z0-9]")
-
-func (p ProxyOperation) GetName() string {
-	if p.Name == nil {
-		name, _ := strings.CutSuffix(path.Base(p.Spec), path.Ext(p.Spec))
-		return string(nonAlphaNum.ReplaceAll([]byte(name), nil))
-	}
-	return *p.Name
-}
 
 type Inject struct {
 	Parameters []*ExcludedParameter `json:"parameters,omitempty" yaml:"parameters,omitempty"`
