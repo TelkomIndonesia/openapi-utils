@@ -292,9 +292,11 @@ func CompileByte(ctx context.Context, specBytes []byte, specDir string) (newspec
 		// copy operation
 		opParam := copyParameters(op.Parameters, uParams...)
 		opID := op.OperationId
+		opSecurity := op.Security
 		*op = *uop
 		op.Parameters = opParam
 		op.OperationId = opID
+		op.Security = opSecurity
 	}
 	by, proxyDoc, proxyDocv3, errs := proxyDoc.RenderAndReload()
 
