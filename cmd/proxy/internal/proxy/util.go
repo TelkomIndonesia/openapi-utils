@@ -234,7 +234,6 @@ func copyComponent[B any, L low.Buildable[B], H high.GoesLow[L]](
 	refname := strings.TrimSuffix(ref.Definition, ref.Name) + name
 	ref.Node.Content = base.CreateSchemaProxyRef(refname).GetReferenceNode().Content
 	m.Set(name, fnew(v.Value))
-
 	return
 }
 
