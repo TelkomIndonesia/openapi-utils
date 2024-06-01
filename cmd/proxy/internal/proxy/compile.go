@@ -17,11 +17,6 @@ import (
 	"github.com/telkomindonesia/openapi-utils/cmd/proxy/internal/proxy/config"
 )
 
-type parameterKey struct {
-	name string
-	in   string
-}
-
 func CompileByte(ctx context.Context, specBytes []byte, specDir string) (newspec []byte, doc libopenapi.Document, docv3 *libopenapi.DocumentModel[v3.Document], err error) {
 	proxyDoc, err := libopenapi.NewDocument([]byte(specBytes))
 	if err != nil {
@@ -31,18 +26,7 @@ func CompileByte(ctx context.Context, specBytes []byte, specDir string) (newspec
 	if err = errors.Join(errs...); err != nil {
 		return nil, nil, nil, fmt.Errorf("failed to create openapi v3 document: %w", err)
 	}
-	if proxyDocv3.Model.Components == nil {
-		proxyDocv3.Model.Components = &v3.Components{}
-	}
-	if proxyDocv3.Model.Components.Schemas == nil {
-		proxyDocv3.Model.Components.Schemas = &orderedmap.Map[string, *base.SchemaProxy]{}
-	}
-	if proxyDocv3.Model.Components.Responses == nil {
-		proxyDocv3.Model.Components.Responses = &orderedmap.Map[string, *v3.Response]{}
-	}
-	if proxyDocv3.Model.Components.Parameters == nil {
-		proxyDocv3.Model.Components.Parameters = &orderedmap.Map[string, *v3.Parameter]{}
-	}
+	initComponents(proxyDocv3)
 
 	// build the proxy
 	proxies := map[string]*config.Proxy{}
@@ -136,13 +120,12 @@ func CompileByte(ctx context.Context, specBytes []byte, specDir string) (newspec
 		for _, ref := range docV3.Index.GetRawReferencesSequenced() {
 			switch {
 			case strings.HasPrefix(ref.Definition, "#/components/schemas"):
-				s, err := baselow.ExtractSchema(ctx, ref.Node, ref.Index)
+				schemaProxy, err := baselow.ExtractSchema(ctx, ref.Node, ref.Index)
 				if err != nil {
 					return nil, nil, nil, fmt.Errorf("fail to recreate schema: %w", err)
 				}
 
-				name := docName + ref.Name
-				docV3.Model.Components.Schemas.Set(name, base.NewSchemaProxy(s))
+				docV3.Model.Components.Schemas.Set(docName+ref.Name, base.NewSchemaProxy(schemaProxy))
 			}
 		}
 
@@ -165,7 +148,7 @@ func CompileByte(ctx context.Context, specBytes []byte, specDir string) (newspec
 		for _, ref := range docV3.Index.GetRawReferencesSequenced() {
 			switch {
 			case strings.HasPrefix(ref.Definition, "#/components/schemas"):
-				s, err := baselow.ExtractSchema(ctx, ref.Node, ref.Index)
+				schemaProxy, err := baselow.ExtractSchema(ctx, ref.Node, ref.Index)
 				if err != nil {
 					return nil, nil, nil, fmt.Errorf("fail to recreate schema: %w", err)
 				}
@@ -173,19 +156,18 @@ func CompileByte(ctx context.Context, specBytes []byte, specDir string) (newspec
 				name := docName + ref.Name
 				refname := "#/components/schemas/" + name
 				ref.Node.Content = base.CreateSchemaProxyRef(refname).GetReferenceNode().Content
-				proxyDocv3.Model.Components.Schemas.Set(name, base.NewSchemaProxy(s))
+				proxyDocv3.Model.Components.Schemas.Set(name, base.NewSchemaProxy(schemaProxy))
 
 			case strings.HasPrefix(ref.Definition, "#/components/responses"):
 				v, err := low.ExtractObject[*v3low.Response](ctx, "", ref.Node, ref.Index)
 				if err != nil {
 					return nil, nil, nil, fmt.Errorf("fail to extract response: %w", err)
 				}
-
 				v.Value.Build(ctx, v.KeyNode, v.ValueNode, ref.Index)
 				res := v3.NewResponse(v.Value)
+
 				name := docName + ref.Name
 				refname := "#/components/responses/" + name
-
 				ref.Node.Content = base.CreateSchemaProxyRef(refname).GetReferenceNode().Content
 				proxyDocv3.Model.Components.Responses.Set(name, res)
 
@@ -194,12 +176,11 @@ func CompileByte(ctx context.Context, specBytes []byte, specDir string) (newspec
 				if err != nil {
 					return nil, nil, nil, fmt.Errorf("fail to extract paramater: %w", err)
 				}
-
 				v.Value.Build(ctx, v.KeyNode, v.ValueNode, ref.Index)
 				param := v3.NewParameter(v.Value)
+
 				name := docName + ref.Name
 				refname := "#/components/parameters/" + name
-
 				ref.Node.Content = base.CreateSchemaProxyRef(refname).GetReferenceNode().Content
 				proxyDocv3.Model.Components.Parameters.Set(name, param)
 			}
@@ -223,43 +204,26 @@ func CompileByte(ctx context.Context, specBytes []byte, specDir string) (newspec
 		if uop == nil {
 			continue
 		}
-		uopParams := map[parameterKey]struct{}{}
-		for _, p := range uop.Parameters {
-			uopParams[parameterKey{name: p.Name, in: p.In}] = struct{}{}
-		}
-		for _, p := range up.Parameters {
-			if _, ok := uopParams[parameterKey{name: p.Name, in: p.In}]; ok {
-				continue
-			}
-			uop.Parameters = append(uop.Parameters, p)
-		}
-
-		// copy operation
-		opParam := op.Parameters
-		opID := op.OperationId
-
-		opParamMap := map[parameterKey]struct{}{}
-		for _, p := range op.Parameters {
-			opParamMap[parameterKey{name: p.Name, in: p.In}] = struct{}{}
-		}
+		var uParams []*v3.Parameter
 		injectedParamMap := map[parameterKey]struct{}{}
 		for _, p := range pop.Inject.Parameters {
 			injectedParamMap[parameterKey{name: p.Name, in: p.In}] = struct{}{}
 		}
-		for _, p := range uop.Parameters {
-			if _, ok := opParamMap[parameterKey{name: p.Name, in: p.In}]; ok {
-				continue
-			}
+		for _, p := range copyParameters(up.Parameters, uop.Parameters...) {
 			if _, ok := injectedParamMap[parameterKey{name: p.Name, in: p.In}]; ok {
 				continue
 			}
-			opParam = append(opParam, p)
+			uParams = append(uParams, p)
 		}
-		*op = *uop
 
+		// copy operation
+		opParam := copyParameters(op.Parameters, uParams...)
+		opID := op.OperationId
+		*op = *uop
 		op.Parameters = opParam
 		op.OperationId = opID
 	}
 	by, proxyDoc, proxyDocv3, errs := proxyDoc.RenderAndReload()
+
 	return by, proxyDoc, proxyDocv3, errors.Join(errs...)
 }

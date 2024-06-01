@@ -3,8 +3,26 @@ package proxy
 import (
 	"strings"
 
+	"github.com/pb33f/libopenapi"
+	"github.com/pb33f/libopenapi/datamodel/high/base"
 	v3 "github.com/pb33f/libopenapi/datamodel/high/v3"
+	"github.com/pb33f/libopenapi/orderedmap"
 )
+
+func initComponents(doc *libopenapi.DocumentModel[v3.Document]) {
+	if doc.Model.Components == nil {
+		doc.Model.Components = &v3.Components{}
+	}
+	if doc.Model.Components.Schemas == nil {
+		doc.Model.Components.Schemas = &orderedmap.Map[string, *base.SchemaProxy]{}
+	}
+	if doc.Model.Components.Responses == nil {
+		doc.Model.Components.Responses = &orderedmap.Map[string, *v3.Response]{}
+	}
+	if doc.Model.Components.Parameters == nil {
+		doc.Model.Components.Parameters = &orderedmap.Map[string, *v3.Parameter]{}
+	}
+}
 
 func getOperationsMap(pi *v3.PathItem) (ops map[string]*v3.Operation) {
 	ops = map[string]*v3.Operation{}
@@ -69,4 +87,25 @@ func setOperation(pi *v3.PathItem, method string, val *v3.Operation) {
 	case strings.EqualFold("Trace", method):
 		pi.Trace = val
 	}
+}
+
+type parameterKey struct {
+	name string
+	in   string
+}
+
+func copyParameters(src []*v3.Parameter, add ...*v3.Parameter) (dst []*v3.Parameter) {
+	copied := map[parameterKey]struct{}{}
+	dst = make([]*v3.Parameter, 0, len(src)+len(add))
+	for _, p := range src {
+		dst = append(dst, p)
+		copied[parameterKey{name: p.Name, in: p.In}] = struct{}{}
+	}
+	for _, p := range add {
+		if _, ok := copied[parameterKey{name: p.Name, in: p.In}]; ok {
+			continue
+		}
+		dst = append(dst, p)
+	}
+	return
 }
