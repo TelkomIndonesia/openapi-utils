@@ -2,6 +2,7 @@ package proxy
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 
@@ -124,25 +125,64 @@ func setOperation(pi *v3.PathItem, method string, val *v3.Operation) {
 	}
 }
 
-type parameterKey struct {
-	name string
-	in   string
-}
-
-func copyParameters(src []*v3.Parameter, add ...*v3.Parameter) (dst []*v3.Parameter) {
-	copied := map[parameterKey]struct{}{}
-	dst = make([]*v3.Parameter, 0, len(src)+len(add))
-	for _, p := range src {
-		dst = append(dst, p)
-		copied[parameterKey{name: p.Name, in: p.In}] = struct{}{}
+func copyComponents(ctx context.Context, src libopenapi.Document, prefix string, dst libopenapi.Document) (nsrc libopenapi.Document, err error) {
+	srcv3, errs := src.BuildV3Model()
+	if err = errors.Join(errs...); err != nil {
+		return nil, fmt.Errorf("fail to build v3 model: %w", err)
 	}
-	for _, p := range add {
-		if _, ok := copied[parameterKey{name: p.Name, in: p.In}]; ok {
+
+	// duplicate schema on source doc with added prefix
+	for _, ref := range srcv3.Index.GetRawReferencesSequenced() {
+		if !strings.HasPrefix(ref.Definition, "#/components/schemas/") {
 			continue
 		}
-		dst = append(dst, p)
+
+		duplicateSchema(ctx, ref, prefix, srcv3.Model.Components.Schemas)
 	}
-	return
+
+	// rerender
+	_, src, srcv3, errs = src.RenderAndReload()
+	if err := errors.Join(errs...); err != nil {
+		return nil, fmt.Errorf("faill to render and reload openapi doc: %w", err)
+	}
+
+	// copy all components
+	dstv3, errs := dst.BuildV3Model()
+	if err = errors.Join(errs...); err != nil {
+		return nil, fmt.Errorf("fail to build v3 model: %w", err)
+	}
+	for _, ref := range srcv3.Index.GetRawReferencesSequenced() {
+		switch {
+		case strings.HasPrefix(ref.Definition, "#/components/schemas/"):
+			copySchema(ctx, ref, prefix, dstv3.Model.Components.Schemas)
+
+		case strings.HasPrefix(ref.Definition, "#/components/parameters/"):
+			copyComponent(ctx, ref, prefix, dstv3.Model.Components.Parameters, v3.NewParameter)
+
+		case strings.HasPrefix(ref.Definition, "#/components/requestBodies/"):
+			copyComponent(ctx, ref, prefix, dstv3.Model.Components.RequestBodies, v3.NewRequestBody)
+
+		case strings.HasPrefix(ref.Definition, "#/components/headers/"):
+			copyComponent(ctx, ref, prefix, dstv3.Model.Components.Headers, v3.NewHeader)
+
+		case strings.HasPrefix(ref.Definition, "#/components/responses/"):
+			copyComponent(ctx, ref, prefix, dstv3.Model.Components.Responses, v3.NewResponse)
+
+		case strings.HasPrefix(ref.Definition, "#/components/securitySchemes/"):
+			copyComponent(ctx, ref, prefix, dstv3.Model.Components.SecuritySchemes, v3.NewSecurityScheme)
+
+		case strings.HasPrefix(ref.Definition, "#/components/examples/"):
+			copyComponent(ctx, ref, prefix, dstv3.Model.Components.Examples, base.NewExample)
+
+		case strings.HasPrefix(ref.Definition, "#/components/links/"):
+			copyComponent(ctx, ref, prefix, dstv3.Model.Components.Links, v3.NewLink)
+
+		case strings.HasPrefix(ref.Definition, "#/components/callbacks/"):
+			copyComponent(ctx, ref, prefix, dstv3.Model.Components.Callbacks, v3.NewCallback)
+		}
+	}
+
+	return src, nil
 }
 
 func duplicateSchema(ctx context.Context, ref *index.Reference, prefix string, m *orderedmap.Map[string, *base.SchemaProxy]) (err error) {
@@ -154,39 +194,6 @@ func duplicateSchema(ctx context.Context, ref *index.Reference, prefix string, m
 	name := prefix + ref.Name
 	m.Set(name, base.NewSchemaProxy(schemaProxy))
 	return
-}
-
-func copyComponents(ctx context.Context, src *libopenapi.DocumentModel[v3.Document], prefix string, dst *libopenapi.DocumentModel[v3.Document]) {
-	for _, ref := range src.Index.GetRawReferencesSequenced() {
-		switch {
-		case strings.HasPrefix(ref.Definition, "#/components/schemas/"):
-			copySchema(ctx, ref, prefix, dst.Model.Components.Schemas)
-
-		case strings.HasPrefix(ref.Definition, "#/components/parameters/"):
-			copyComponent(ctx, ref, prefix, dst.Model.Components.Parameters, v3.NewParameter)
-
-		case strings.HasPrefix(ref.Definition, "#/components/requestBodies/"):
-			copyComponent(ctx, ref, prefix, dst.Model.Components.RequestBodies, v3.NewRequestBody)
-
-		case strings.HasPrefix(ref.Definition, "#/components/headers/"):
-			copyComponent(ctx, ref, prefix, dst.Model.Components.Headers, v3.NewHeader)
-
-		case strings.HasPrefix(ref.Definition, "#/components/responses/"):
-			copyComponent(ctx, ref, prefix, dst.Model.Components.Responses, v3.NewResponse)
-
-		case strings.HasPrefix(ref.Definition, "#/components/securitySchemes/"):
-			copyComponent(ctx, ref, prefix, dst.Model.Components.SecuritySchemes, v3.NewSecurityScheme)
-
-		case strings.HasPrefix(ref.Definition, "#/components/examples/"):
-			copyComponent(ctx, ref, prefix, dst.Model.Components.Examples, base.NewExample)
-
-		case strings.HasPrefix(ref.Definition, "#/components/links/"):
-			copyComponent(ctx, ref, prefix, dst.Model.Components.Links, v3.NewLink)
-
-		case strings.HasPrefix(ref.Definition, "#/components/callbacks/"):
-			copyComponent(ctx, ref, prefix, dst.Model.Components.Callbacks, v3.NewCallback)
-		}
-	}
 }
 
 func copySchema(ctx context.Context, ref *index.Reference, prefix string, m *orderedmap.Map[string, *base.SchemaProxy]) (err error) {
@@ -220,5 +227,26 @@ func copyComponent[B any, L low.Buildable[B], H high.GoesLow[L]](
 	ref.Node.Content = base.CreateSchemaProxyRef(refname).GetReferenceNode().Content
 	m.Set(name, fnew(v.Value))
 
+	return
+}
+
+type parameterKey struct {
+	name string
+	in   string
+}
+
+func copyParameters(src []*v3.Parameter, add ...*v3.Parameter) (dst []*v3.Parameter) {
+	copied := map[parameterKey]struct{}{}
+	dst = make([]*v3.Parameter, 0, len(src)+len(add))
+	for _, p := range src {
+		dst = append(dst, p)
+		copied[parameterKey{name: p.Name, in: p.In}] = struct{}{}
+	}
+	for _, p := range add {
+		if _, ok := copied[parameterKey{name: p.Name, in: p.In}]; ok {
+			continue
+		}
+		dst = append(dst, p)
+	}
 	return
 }

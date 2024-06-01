@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"path"
-	"strings"
 
 	"github.com/pb33f/libopenapi"
 	v3 "github.com/pb33f/libopenapi/datamodel/high/v3"
@@ -92,10 +91,6 @@ func CompileByte(ctx context.Context, specBytes []byte, specDir string) (newspec
 	proxyOperationUpstreamDocs := map[*config.ProxyOperation]libopenapi.Document{}
 	for doc, popmap := range upstreamDocs {
 		docV3, _ := doc.BuildV3Model()
-		var docName string
-		for pop := range popmap {
-			docName = pop.GetName()
-		}
 
 		// delete unused operation
 		opmap := map[*v3.Operation]struct{}{}
@@ -112,28 +107,20 @@ func CompileByte(ctx context.Context, specBytes []byte, specDir string) (newspec
 			}
 		}
 
-		// duplicate schema and add prefix
-		for _, ref := range docV3.Index.GetRawReferencesSequenced() {
-			if !strings.HasPrefix(ref.Definition, "#/components/schemas/") {
-				continue
-			}
-
-			duplicateSchema(ctx, ref, docName, docV3.Model.Components.Schemas)
+		// copy components with new prefix
+		var prefix string
+		for pop := range popmap {
+			prefix = pop.GetName()
 		}
-
-		// rerender
-		_, doc, docV3, errs = doc.RenderAndReload()
-		if err := errors.Join(errs...); err != nil {
-			return nil, nil, nil, fmt.Errorf("faill to render and reload openapi doc: %w", err)
+		doc, err := copyComponents(ctx, doc, prefix, proxyDoc)
+		if err != nil {
+			return nil, nil, nil, fmt.Errorf("fail to copy components : %w", err)
 		}
 
 		// store the result
 		for pop := range popmap {
 			proxyOperationUpstreamDocs[pop] = doc
 		}
-
-		// copy components with new prefix
-		copyComponents(ctx, docV3, docName, proxyDocv3)
 	}
 
 	// compile proxy document
