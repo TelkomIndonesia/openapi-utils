@@ -228,7 +228,10 @@ func modCopyComponent[B any, L low.Buildable[B], H high.GoesLow[L]](
 	if err != nil {
 		return fmt.Errorf("fail to extract object: %w", err)
 	}
-	v.Value.Build(ctx, v.KeyNode, v.ValueNode, ref.Index)
+	err = v.Value.Build(ctx, v.KeyNode, v.ValueNode, ref.Index)
+	if err != nil {
+		return fmt.Errorf("fail to build object: %w", err)
+	}
 
 	name := prefix + ref.Name
 	refname := strings.TrimSuffix(ref.Definition, ref.Name) + name
