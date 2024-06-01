@@ -119,11 +119,10 @@ func CompileByte(ctx context.Context, specBytes []byte, specDir string) (newspec
 
 		// copy schema and add prefix
 		for _, ref := range docV3.Index.GetRawReferencesSequenced() {
-			if !strings.HasPrefix(ref.Definition, "#/components/schemas") {
+			if !strings.HasPrefix(ref.Definition, "#/components/schemas/") {
 				continue
 			}
 
-			strings.HasPrefix(ref.Definition, "#/components/schemas")
 			schemaProxy, err := baselow.ExtractSchema(ctx, ref.Node, ref.Index)
 			if err != nil {
 				return nil, nil, nil, fmt.Errorf("fail to recreate schema: %w", err)
@@ -150,18 +149,18 @@ func CompileByte(ctx context.Context, specBytes []byte, specDir string) (newspec
 		docV3, _ := doc.BuildV3Model()
 		for _, ref := range docV3.Index.GetRawReferencesSequenced() {
 			switch {
-			case strings.HasPrefix(ref.Definition, "#/components/schemas"):
+			case strings.HasPrefix(ref.Definition, "#/components/schemas/"):
 				schemaProxy, err := baselow.ExtractSchema(ctx, ref.Node, ref.Index)
 				if err != nil {
 					return nil, nil, nil, fmt.Errorf("fail to recreate schema: %w", err)
 				}
 
 				name := docName + ref.Name
-				refname := "#/components/schemas/" + name
+				refname := strings.TrimSuffix(ref.Definition, ref.Name) + name
 				ref.Node.Content = base.CreateSchemaProxyRef(refname).GetReferenceNode().Content
 				proxyDocv3.Model.Components.Schemas.Set(name, base.NewSchemaProxy(schemaProxy))
 
-			case strings.HasPrefix(ref.Definition, "#/components/parameters"):
+			case strings.HasPrefix(ref.Definition, "#/components/parameters/"):
 				v, err := low.ExtractObject[*v3low.Parameter](ctx, "", ref.Node, ref.Index)
 				if err != nil {
 					return nil, nil, nil, fmt.Errorf("fail to extract paramater: %w", err)
@@ -169,11 +168,11 @@ func CompileByte(ctx context.Context, specBytes []byte, specDir string) (newspec
 				v.Value.Build(ctx, v.KeyNode, v.ValueNode, ref.Index)
 
 				name := docName + ref.Name
-				refname := "#/components/parameters/" + name
+				refname := strings.TrimSuffix(ref.Definition, ref.Name) + name
 				ref.Node.Content = base.CreateSchemaProxyRef(refname).GetReferenceNode().Content
 				proxyDocv3.Model.Components.Parameters.Set(name, v3.NewParameter(v.Value))
 
-			case strings.HasPrefix(ref.Definition, "#/components/requestBodies"):
+			case strings.HasPrefix(ref.Definition, "#/components/requestBodies/"):
 				v, err := low.ExtractObject[*v3low.RequestBody](ctx, "", ref.Node, ref.Index)
 				if err != nil {
 					return nil, nil, nil, fmt.Errorf("fail to extract paramater: %w", err)
@@ -181,11 +180,11 @@ func CompileByte(ctx context.Context, specBytes []byte, specDir string) (newspec
 				v.Value.Build(ctx, v.KeyNode, v.ValueNode, ref.Index)
 
 				name := docName + ref.Name
-				refname := "#/components/requestBodies/" + name
+				refname := strings.TrimSuffix(ref.Definition, ref.Name) + name
 				ref.Node.Content = base.CreateSchemaProxyRef(refname).GetReferenceNode().Content
 				proxyDocv3.Model.Components.RequestBodies.Set(name, v3.NewRequestBody(v.Value))
 
-			case strings.HasPrefix(ref.Definition, "#/components/headers"):
+			case strings.HasPrefix(ref.Definition, "#/components/headers/"):
 				v, err := low.ExtractObject[*v3low.Header](ctx, "", ref.Node, ref.Index)
 				if err != nil {
 					return nil, nil, nil, fmt.Errorf("fail to extract paramater: %w", err)
@@ -193,11 +192,11 @@ func CompileByte(ctx context.Context, specBytes []byte, specDir string) (newspec
 				v.Value.Build(ctx, v.KeyNode, v.ValueNode, ref.Index)
 
 				name := docName + ref.Name
-				refname := "#/components/headers/" + name
+				refname := strings.TrimSuffix(ref.Definition, ref.Name) + name
 				ref.Node.Content = base.CreateSchemaProxyRef(refname).GetReferenceNode().Content
 				proxyDocv3.Model.Components.Headers.Set(name, v3.NewHeader(v.Value))
 
-			case strings.HasPrefix(ref.Definition, "#/components/responses"):
+			case strings.HasPrefix(ref.Definition, "#/components/responses/"):
 				v, err := low.ExtractObject[*v3low.Response](ctx, "", ref.Node, ref.Index)
 				if err != nil {
 					return nil, nil, nil, fmt.Errorf("fail to extract response: %w", err)
@@ -205,11 +204,11 @@ func CompileByte(ctx context.Context, specBytes []byte, specDir string) (newspec
 				v.Value.Build(ctx, v.KeyNode, v.ValueNode, ref.Index)
 
 				name := docName + ref.Name
-				refname := "#/components/responses/" + name
+				refname := strings.TrimSuffix(ref.Definition, ref.Name) + name
 				ref.Node.Content = base.CreateSchemaProxyRef(refname).GetReferenceNode().Content
 				proxyDocv3.Model.Components.Responses.Set(name, v3.NewResponse(v.Value))
 
-			case strings.HasPrefix(ref.Definition, "#/components/securitySchemes"):
+			case strings.HasPrefix(ref.Definition, "#/components/securitySchemes/"):
 				v, err := low.ExtractObject[*v3low.SecurityScheme](ctx, "", ref.Node, ref.Index)
 				if err != nil {
 					return nil, nil, nil, fmt.Errorf("fail to extract response: %w", err)
@@ -217,11 +216,11 @@ func CompileByte(ctx context.Context, specBytes []byte, specDir string) (newspec
 				v.Value.Build(ctx, v.KeyNode, v.ValueNode, ref.Index)
 
 				name := docName + ref.Name
-				refname := "#/components/securitySchemes/" + name
+				refname := strings.TrimSuffix(ref.Definition, ref.Name) + name
 				ref.Node.Content = base.CreateSchemaProxyRef(refname).GetReferenceNode().Content
 				proxyDocv3.Model.Components.SecuritySchemes.Set(name, v3.NewSecurityScheme(v.Value))
 
-			case strings.HasPrefix(ref.Definition, "#/components/examples"):
+			case strings.HasPrefix(ref.Definition, "#/components/examples/"):
 				v, err := low.ExtractObject[*baselow.Example](ctx, "", ref.Node, ref.Index)
 				if err != nil {
 					return nil, nil, nil, fmt.Errorf("fail to extract response: %w", err)
@@ -229,11 +228,11 @@ func CompileByte(ctx context.Context, specBytes []byte, specDir string) (newspec
 				v.Value.Build(ctx, v.KeyNode, v.ValueNode, ref.Index)
 
 				name := docName + ref.Name
-				refname := "#/components/examples/" + name
+				refname := strings.TrimSuffix(ref.Definition, ref.Name) + name
 				ref.Node.Content = base.CreateSchemaProxyRef(refname).GetReferenceNode().Content
 				proxyDocv3.Model.Components.Examples.Set(name, base.NewExample(v.Value))
 
-			case strings.HasPrefix(ref.Definition, "#/components/links"):
+			case strings.HasPrefix(ref.Definition, "#/components/links/"):
 				v, err := low.ExtractObject[*v3low.Link](ctx, "", ref.Node, ref.Index)
 				if err != nil {
 					return nil, nil, nil, fmt.Errorf("fail to extract response: %w", err)
@@ -241,11 +240,11 @@ func CompileByte(ctx context.Context, specBytes []byte, specDir string) (newspec
 				v.Value.Build(ctx, v.KeyNode, v.ValueNode, ref.Index)
 
 				name := docName + ref.Name
-				refname := "#/components/links/" + name
+				refname := strings.TrimSuffix(ref.Definition, ref.Name) + name
 				ref.Node.Content = base.CreateSchemaProxyRef(refname).GetReferenceNode().Content
 				proxyDocv3.Model.Components.Links.Set(name, v3.NewLink(v.Value))
 
-			case strings.HasPrefix(ref.Definition, "#/components/callbacks"):
+			case strings.HasPrefix(ref.Definition, "#/components/callbacks/"):
 				v, err := low.ExtractObject[*v3low.Callback](ctx, "", ref.Node, ref.Index)
 				if err != nil {
 					return nil, nil, nil, fmt.Errorf("fail to extract response: %w", err)
@@ -253,7 +252,7 @@ func CompileByte(ctx context.Context, specBytes []byte, specDir string) (newspec
 				v.Value.Build(ctx, v.KeyNode, v.ValueNode, ref.Index)
 
 				name := docName + ref.Name
-				refname := "#/components/links/" + name
+				refname := strings.TrimSuffix(ref.Definition, ref.Name) + name
 				ref.Node.Content = base.CreateSchemaProxyRef(refname).GetReferenceNode().Content
 				proxyDocv3.Model.Components.Callbacks.Set(name, v3.NewCallback(v.Value))
 			}
