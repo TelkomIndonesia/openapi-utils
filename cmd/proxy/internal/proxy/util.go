@@ -258,3 +258,10 @@ func copyParameters(src []*v3.Parameter, add ...*v3.Parameter) (dst []*v3.Parame
 	}
 	return
 }
+
+func firstKey[K comparable, V any](m map[K]V) (k K) {
+	for k = range m {
+		return
+	}
+	return
+}
