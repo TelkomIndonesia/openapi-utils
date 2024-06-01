@@ -53,75 +53,75 @@ func initComponents(doc *libopenapi.DocumentModel[v3.Document]) {
 	}
 }
 
-func getOperationsMap(pi *v3.PathItem) (ops map[string]*v3.Operation) {
+func getOperationsMap(p *v3.PathItem) (ops map[string]*v3.Operation) {
 	ops = map[string]*v3.Operation{}
-	if pi.Get != nil {
-		ops["get"] = pi.Get
+	if p.Get != nil {
+		ops["get"] = p.Get
 	}
-	if pi.Delete != nil {
-		ops["delete"] = pi.Delete
+	if p.Delete != nil {
+		ops["delete"] = p.Delete
 	}
-	if pi.Post != nil {
-		ops["post"] = pi.Post
+	if p.Post != nil {
+		ops["post"] = p.Post
 	}
-	if pi.Put != nil {
-		ops["put"] = pi.Put
+	if p.Put != nil {
+		ops["put"] = p.Put
 	}
-	if pi.Patch != nil {
-		ops["patch"] = pi.Patch
+	if p.Patch != nil {
+		ops["patch"] = p.Patch
 	}
-	if pi.Options != nil {
-		ops["options"] = pi.Options
+	if p.Options != nil {
+		ops["options"] = p.Options
 	}
-	if pi.Head != nil {
-		ops["head"] = pi.Head
+	if p.Head != nil {
+		ops["head"] = p.Head
 	}
-	if pi.Trace != nil {
-		ops["trace"] = pi.Trace
+	if p.Trace != nil {
+		ops["trace"] = p.Trace
 	}
 	return
 }
 
-func getOperation(pi *v3.PathItem, method string) *v3.Operation {
+func getOperation(p *v3.PathItem, method string) *v3.Operation {
 	switch {
 	case strings.EqualFold("get", method):
-		return pi.Get
+		return p.Get
 	case strings.EqualFold("delete", method):
-		return pi.Delete
+		return p.Delete
 	case strings.EqualFold("post", method):
-		return pi.Post
+		return p.Post
 	case strings.EqualFold("put", method):
-		return pi.Put
+		return p.Put
 	case strings.EqualFold("patch", method):
-		return pi.Patch
+		return p.Patch
 	case strings.EqualFold("options", method):
-		return pi.Options
+		return p.Options
 	case strings.EqualFold("head", method):
-		return pi.Head
+		return p.Head
 	case strings.EqualFold("trace", method):
-		return pi.Trace
+		return p.Trace
 	}
 	return nil
 }
 
-func setOperation(pi *v3.PathItem, method string, val *v3.Operation) {
+func setOperation(p *v3.PathItem, method string, val *v3.Operation) {
 	switch {
 	case strings.EqualFold("get", method):
-		pi.Get = val
+		p.Get = val
 	case strings.EqualFold("delete", method):
-		pi.Delete = val
+		p.Delete = val
 	case strings.EqualFold("post", method):
-		pi.Post = val
+		p.Post = val
 	case strings.EqualFold("put", method):
-		pi.Put = val
+		p.Put = val
 	case strings.EqualFold("patch", method):
-		pi.Patch = val
+		p.Patch = val
 	case strings.EqualFold("options", method):
-		pi.Options = val
+		p.Options = val
 	case strings.EqualFold("head", method):
-		pi.Head = val
+		p.Head = val
 	case strings.EqualFold("trace", method):
-		pi.Trace = val
+		p.Trace = val
 	}
 }
 
@@ -185,7 +185,11 @@ func copyComponents(ctx context.Context, src libopenapi.Document, prefix string,
 	return src, nil
 }
 
-func duplicateSchema(ctx context.Context, ref *index.Reference, prefix string, m *orderedmap.Map[string, *base.SchemaProxy]) (err error) {
+func duplicateSchema(ctx context.Context,
+	ref *index.Reference,
+	prefix string,
+	m *orderedmap.Map[string, *base.SchemaProxy],
+) (err error) {
 	schemaProxy, err := baselow.ExtractSchema(ctx, ref.Node, ref.Index)
 	if err != nil {
 		return fmt.Errorf("fail to recreate schema: %w", err)
@@ -196,7 +200,11 @@ func duplicateSchema(ctx context.Context, ref *index.Reference, prefix string, m
 	return
 }
 
-func copySchema(ctx context.Context, ref *index.Reference, prefix string, m *orderedmap.Map[string, *base.SchemaProxy]) (err error) {
+func copySchema(ctx context.Context,
+	ref *index.Reference,
+	prefix string,
+	m *orderedmap.Map[string, *base.SchemaProxy],
+) (err error) {
 	schemaProxy, err := baselow.ExtractSchema(ctx, ref.Node, ref.Index)
 	if err != nil {
 		return fmt.Errorf("fail to recreate schema: %w", err)
