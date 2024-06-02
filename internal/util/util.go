@@ -125,7 +125,7 @@ func SetOperation(p *v3.PathItem, method string, val *v3.Operation) {
 	}
 }
 
-func RenameAndCopyComponents(ctx context.Context, src libopenapi.Document, prefix string, dst libopenapi.Document) (nsrc libopenapi.Document, err error) {
+func CopyComponentsAndRenameRef(ctx context.Context, src libopenapi.Document, prefix string, dst libopenapi.Document) (nsrc libopenapi.Document, err error) {
 	srcv3, errs := src.BuildV3Model()
 	if err = errors.Join(errs...); err != nil {
 		return nil, fmt.Errorf("fail to build v3 model: %w", err)
@@ -154,31 +154,31 @@ func RenameAndCopyComponents(ctx context.Context, src libopenapi.Document, prefi
 	for _, ref := range srcv3.Index.GetRawReferencesSequenced() {
 		switch {
 		case strings.HasPrefix(ref.Definition, "#/components/schemas/"):
-			RenameAndCopySchema(ctx, ref, prefix, dstv3.Model.Components.Schemas)
+			CopySchemaAndRenameRef(ctx, ref, prefix, dstv3.Model.Components.Schemas)
 
 		case strings.HasPrefix(ref.Definition, "#/components/parameters/"):
-			RenameAndCopyComponent(ctx, ref, prefix, dstv3.Model.Components.Parameters, v3.NewParameter)
+			CopyComponentAndRenameRef(ctx, ref, prefix, dstv3.Model.Components.Parameters, v3.NewParameter)
 
 		case strings.HasPrefix(ref.Definition, "#/components/requestBodies/"):
-			RenameAndCopyComponent(ctx, ref, prefix, dstv3.Model.Components.RequestBodies, v3.NewRequestBody)
+			CopyComponentAndRenameRef(ctx, ref, prefix, dstv3.Model.Components.RequestBodies, v3.NewRequestBody)
 
 		case strings.HasPrefix(ref.Definition, "#/components/headers/"):
-			RenameAndCopyComponent(ctx, ref, prefix, dstv3.Model.Components.Headers, v3.NewHeader)
+			CopyComponentAndRenameRef(ctx, ref, prefix, dstv3.Model.Components.Headers, v3.NewHeader)
 
 		case strings.HasPrefix(ref.Definition, "#/components/responses/"):
-			RenameAndCopyComponent(ctx, ref, prefix, dstv3.Model.Components.Responses, v3.NewResponse)
+			CopyComponentAndRenameRef(ctx, ref, prefix, dstv3.Model.Components.Responses, v3.NewResponse)
 
 		case strings.HasPrefix(ref.Definition, "#/components/securitySchemes/"):
-			RenameAndCopyComponent(ctx, ref, prefix, dstv3.Model.Components.SecuritySchemes, v3.NewSecurityScheme)
+			CopyComponentAndRenameRef(ctx, ref, prefix, dstv3.Model.Components.SecuritySchemes, v3.NewSecurityScheme)
 
 		case strings.HasPrefix(ref.Definition, "#/components/examples/"):
-			RenameAndCopyComponent(ctx, ref, prefix, dstv3.Model.Components.Examples, base.NewExample)
+			CopyComponentAndRenameRef(ctx, ref, prefix, dstv3.Model.Components.Examples, base.NewExample)
 
 		case strings.HasPrefix(ref.Definition, "#/components/links/"):
-			RenameAndCopyComponent(ctx, ref, prefix, dstv3.Model.Components.Links, v3.NewLink)
+			CopyComponentAndRenameRef(ctx, ref, prefix, dstv3.Model.Components.Links, v3.NewLink)
 
 		case strings.HasPrefix(ref.Definition, "#/components/callbacks/"):
-			RenameAndCopyComponent(ctx, ref, prefix, dstv3.Model.Components.Callbacks, v3.NewCallback)
+			CopyComponentAndRenameRef(ctx, ref, prefix, dstv3.Model.Components.Callbacks, v3.NewCallback)
 		}
 	}
 
@@ -200,7 +200,7 @@ func CopySchema(ctx context.Context,
 	return
 }
 
-func RenameAndCopySchema(ctx context.Context,
+func CopySchemaAndRenameRef(ctx context.Context,
 	ref *index.Reference,
 	prefix string,
 	m *orderedmap.Map[string, *base.SchemaProxy],
@@ -211,13 +211,14 @@ func RenameAndCopySchema(ctx context.Context,
 	}
 
 	name := prefix + ref.Name
+	m.Set(name, base.NewSchemaProxy(schemaProxy))
+
 	refname := strings.TrimSuffix(ref.Definition, ref.Name) + name
 	ref.Node.Content = base.CreateSchemaProxyRef(refname).GetReferenceNode().Content
-	m.Set(name, base.NewSchemaProxy(schemaProxy))
 	return
 }
 
-func RenameAndCopyComponent[B any, L low.Buildable[B], H high.GoesLow[L]](
+func CopyComponentAndRenameRef[B any, L low.Buildable[B], H high.GoesLow[L]](
 	ctx context.Context,
 	ref *index.Reference,
 	prefix string,
@@ -234,9 +235,10 @@ func RenameAndCopyComponent[B any, L low.Buildable[B], H high.GoesLow[L]](
 	}
 
 	name := prefix + ref.Name
+	m.Set(name, fnew(v.Value))
+
 	refname := strings.TrimSuffix(ref.Definition, ref.Name) + name
 	ref.Node.Content = base.CreateSchemaProxyRef(refname).GetReferenceNode().Content
-	m.Set(name, fnew(v.Value))
 	return
 }
 
