@@ -129,7 +129,7 @@ func (pop *ProxyOperation) GetUpstreamOperation() (uop *v3.Operation, err error)
 	return pop.uop, nil
 }
 
-func (pop *ProxyOperation) GetProxiedParameter() (uparams []*v3.Parameter, err error) {
+func (pop *ProxyOperation) GetProxiedParameters() (uparams []*v3.Parameter, err error) {
 	if pop.uparams == nil {
 		if _, err = pop.GetUpstreamOperation(); err != nil {
 			return nil, err

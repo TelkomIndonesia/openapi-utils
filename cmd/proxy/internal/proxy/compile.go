@@ -63,7 +63,7 @@ func CompileByte(ctx context.Context, specPath string) (newspec []byte, doc libo
 		if err != nil {
 			return nil, nil, err
 		}
-		params, err := pop.GetProxiedParameter()
+		params, err := pop.GetProxiedParameters()
 		if err != nil {
 			return nil, nil, err
 		}
