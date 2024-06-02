@@ -10,10 +10,10 @@ import (
 	"github.com/pb33f/libopenapi/orderedmap"
 )
 
-func CompileByte(ctx context.Context, specPath string) (newspec []byte, doc libopenapi.Document, docv3 *libopenapi.DocumentModel[v3.Document], err error) {
+func CompileByte(ctx context.Context, specPath string) (newspec []byte, doc libopenapi.Document, err error) {
 	pe, err := NewProxyExtension(ctx, specPath)
 	if err != nil {
-		return nil, nil, nil, err
+		return nil, nil, err
 	}
 
 	// copy components to proxy doc
@@ -40,7 +40,7 @@ func CompileByte(ctx context.Context, specPath string) (newspec []byte, doc libo
 		prefix := mapFirstEntry(mapFirstEntry(uopPopMap).value).key.GetName()
 		doc, err := modCopyComponents(ctx, doc, prefix, pe.doc)
 		if err != nil {
-			return nil, nil, nil, fmt.Errorf("fail to copy components : %w", err)
+			return nil, nil, fmt.Errorf("fail to copy components : %w", err)
 		}
 
 		// store the new upstream doc
@@ -60,11 +60,11 @@ func CompileByte(ctx context.Context, specPath string) (newspec []byte, doc libo
 		*pop = pop.WithReloadedDoc(doc)
 		uop, err := pop.GetUpstreamOperation()
 		if err != nil {
-			return nil, nil, nil, err
+			return nil, nil, err
 		}
 		params, err := pop.GetProxiedParameter()
 		if err != nil {
-			return nil, nil, nil, err
+			return nil, nil, err
 		}
 
 		// copy operation
@@ -76,7 +76,7 @@ func CompileByte(ctx context.Context, specPath string) (newspec []byte, doc libo
 		op.OperationId = opID
 		op.Security = opSecurity
 	}
-	by, proxyDoc, proxyDocv3, errs := pe.doc.RenderAndReload()
-
-	return by, proxyDoc, proxyDocv3, errors.Join(errs...)
+	newspec, doc, _, errs := pe.doc.RenderAndReload()
+	err = errors.Join(errs...)
+	return
 }

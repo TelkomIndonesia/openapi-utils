@@ -14,7 +14,7 @@ func main() {
 	}
 
 	src := os.Args[1]
-	bytes, _, _, err := proxy.CompileByte(context.Background(), src)
+	bytes, _, err := proxy.CompileByte(context.Background(), src)
 	if err != nil {
 		log.Fatalln("fail to bundle file:", err)
 	}

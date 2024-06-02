@@ -10,7 +10,7 @@ import (
 func TestCompile(t *testing.T) {
 	src := "./testdata/spec-proxy.yml"
 
-	by, _, _, err := CompileByte(context.Background(), src)
+	by, _, err := CompileByte(context.Background(), src)
 	require.NoError(t, err)
 	t.Log("new\n", string(by))
 }
