@@ -18,13 +18,13 @@ func CompileByte(ctx context.Context, specPath string) (newspec []byte, doc libo
 
 	// copy components to proxy doc
 	proxyOperationUpstreamDocs := map[*ProxyOperation]libopenapi.Document{}
-	for doc, popmap := range pe.upstream {
+	for doc, uopPopMap := range pe.upstream {
 		docV3, _ := doc.BuildV3Model()
 
 		// delete unused operation
 		opmap := map[*v3.Operation]struct{}{}
-		for _, v := range popmap {
-			opmap[v] = struct{}{}
+		for k := range uopPopMap {
+			opmap[k] = struct{}{}
 		}
 		for m := range orderedmap.Iterate(ctx, docV3.Model.Paths.PathItems) {
 			pathItem := m.Value()
@@ -37,15 +37,17 @@ func CompileByte(ctx context.Context, specPath string) (newspec []byte, doc libo
 		}
 
 		// copy components with new prefix
-		prefix := firstEntry(popmap).key.GetName()
+		prefix := firstEntry(firstEntry(uopPopMap).value).key.GetName()
 		doc, err := modCopyComponents(ctx, doc, prefix, pe.doc)
 		if err != nil {
 			return nil, nil, nil, fmt.Errorf("fail to copy components : %w", err)
 		}
 
-		// store the result
-		for pop := range popmap {
-			proxyOperationUpstreamDocs[pop] = doc
+		// store the new upstream doc
+		for _, popmap := range uopPopMap {
+			for pop := range popmap {
+				proxyOperationUpstreamDocs[pop] = doc
+			}
 		}
 	}
 

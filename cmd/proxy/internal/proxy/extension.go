@@ -20,7 +20,7 @@ type ProxyExtension struct {
 	doc      libopenapi.Document
 	docv3    *libopenapi.DocumentModel[v3.Document]
 	proxied  map[*v3.Operation]*ProxyOperation
-	upstream map[libopenapi.Document]map[*ProxyOperation]*v3.Operation
+	upstream map[libopenapi.Document]map[*v3.Operation]map[*ProxyOperation]struct{}
 }
 
 func NewProxyExtension(ctx context.Context, specPath string) (pe ProxyExtension, err error) {
@@ -62,7 +62,7 @@ func (pe *ProxyExtension) loadDoc() (err error) {
 
 func (pe *ProxyExtension) loadProxied(ctx context.Context) (err error) {
 	pe.proxied = map[*v3.Operation]*ProxyOperation{}
-	pe.upstream = map[libopenapi.Document]map[*ProxyOperation]*v3.Operation{}
+	pe.upstream = make(map[libopenapi.Document]map[*v3.Operation]map[*ProxyOperation]struct{})
 
 	proxies := map[string]*Proxy{}
 	if pe.docv3.Model.Components.Extensions != nil {
@@ -113,9 +113,12 @@ func (pe *ProxyExtension) loadProxied(ctx context.Context) (err error) {
 
 			pe.proxied[op] = &pop
 			if _, ok := pe.upstream[doc]; !ok {
-				pe.upstream[doc] = map[*ProxyOperation]*v3.Operation{}
+				pe.upstream[doc] = map[*v3.Operation]map[*ProxyOperation]struct{}{}
 			}
-			pe.upstream[doc][&pop] = uop
+			if _, ok := pe.upstream[doc][uop]; !ok {
+				pe.upstream[doc][uop] = map[*ProxyOperation]struct{}{}
+			}
+			pe.upstream[doc][uop][&pop] = struct{}{}
 		}
 	}
 	return
