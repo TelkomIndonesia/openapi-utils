@@ -37,7 +37,7 @@ func CompileByte(ctx context.Context, specPath string) (newspec []byte, doc libo
 		}
 
 		// copy components with new prefix
-		prefix := firstEntry(firstEntry(uopPopMap).value).key.GetName()
+		prefix := mapFirstEntry(mapFirstEntry(uopPopMap).value).key.GetName()
 		doc, err := modCopyComponents(ctx, doc, prefix, pe.doc)
 		if err != nil {
 			return nil, nil, nil, fmt.Errorf("fail to copy components : %w", err)
