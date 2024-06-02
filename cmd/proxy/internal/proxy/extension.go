@@ -11,6 +11,7 @@ import (
 	"github.com/pb33f/libopenapi"
 	v3 "github.com/pb33f/libopenapi/datamodel/high/v3"
 	"github.com/pb33f/libopenapi/orderedmap"
+	"github.com/telkomindonesia/openapi-utils/internal/util"
 )
 
 type ProxyExtension struct {
@@ -56,7 +57,7 @@ func (pe *ProxyExtension) loadDoc() (err error) {
 	}
 
 	pe.doc, pe.docv3 = doc, docv3
-	initComponents(pe.docv3)
+	util.InitComponents(pe.docv3)
 	return
 }
 
@@ -80,7 +81,7 @@ func (pe *ProxyExtension) loadProxied(ctx context.Context) (err error) {
 	}
 
 	for m := range orderedmap.Iterate(ctx, pe.docv3.Model.Paths.PathItems) {
-		for _, op := range getOperationsMap(m.Value()) {
+		for _, op := range util.GetOperationsMap(m.Value()) {
 			if op.Extensions == nil {
 				continue
 			}

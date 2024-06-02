@@ -10,6 +10,7 @@ import (
 
 	"github.com/pb33f/libopenapi"
 	v3 "github.com/pb33f/libopenapi/datamodel/high/v3"
+	"github.com/telkomindonesia/openapi-utils/internal/util"
 )
 
 type Proxies map[string]Proxy
@@ -116,7 +117,7 @@ func (pop *ProxyOperation) GetUpstreamOperation() (uop *v3.Operation, err error)
 			return nil, fmt.Errorf("path '%s' not found inside upstream doc", pop.Path)
 		}
 
-		uop = getOperation(up, pop.Method)
+		uop = util.GetOperation(up, pop.Method)
 		if uop == nil {
 			return nil, fmt.Errorf("operation '%s %s' not found inside upstream doc", pop.Method, pop.Path)
 		}
@@ -134,12 +135,12 @@ func (pop *ProxyOperation) GetProxiedParameter() (uparams []*v3.Parameter, err e
 			return nil, err
 		}
 
-		injectedParamMap := map[parameterKey]struct{}{}
+		injectedParamMap := map[util.ParameterKey]struct{}{}
 		for _, p := range pop.Inject.Parameters {
-			injectedParamMap[parameterKey{name: p.Name, in: p.In}] = struct{}{}
+			injectedParamMap[util.NewParameterKey(p.Name, p.In)] = struct{}{}
 		}
-		for _, p := range copyParameters(pop.uop.Parameters, pop.up.Parameters...) {
-			if _, ok := injectedParamMap[parameterKey{name: p.Name, in: p.In}]; ok {
+		for _, p := range util.CopyParameters(pop.uop.Parameters, pop.up.Parameters...) {
+			if _, ok := injectedParamMap[util.NewParameterKey(p.Name, p.In)]; ok {
 				continue
 			}
 			pop.uparams = append(pop.uparams, p)

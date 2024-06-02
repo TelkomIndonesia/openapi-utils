@@ -8,6 +8,7 @@ import (
 	"github.com/pb33f/libopenapi"
 	v3 "github.com/pb33f/libopenapi/datamodel/high/v3"
 	"github.com/pb33f/libopenapi/orderedmap"
+	"github.com/telkomindonesia/openapi-utils/internal/util"
 )
 
 func CompileByte(ctx context.Context, specPath string) (newspec []byte, doc libopenapi.Document, err error) {
@@ -28,17 +29,17 @@ func CompileByte(ctx context.Context, specPath string) (newspec []byte, doc libo
 		}
 		for m := range orderedmap.Iterate(ctx, docV3.Model.Paths.PathItems) {
 			pathItem := m.Value()
-			for method, op := range getOperationsMap(m.Value()) {
+			for method, op := range util.GetOperationsMap(m.Value()) {
 				if _, ok := opmap[op]; ok {
 					continue
 				}
-				setOperation(pathItem, method, nil)
+				util.SetOperation(pathItem, method, nil)
 			}
 		}
 
 		// copy components with new prefix
-		prefix := mapFirstEntry(mapFirstEntry(uopPopMap).value).key.GetName()
-		doc, err := modCopyComponents(ctx, doc, prefix, pe.doc)
+		prefix := util.MapFirstEntry(util.MapFirstEntry(uopPopMap).Value).Key.GetName()
+		doc, err := util.CopyModifiedComponents(ctx, doc, prefix, pe.doc)
 		if err != nil {
 			return nil, nil, fmt.Errorf("fail to copy components : %w", err)
 		}
@@ -68,7 +69,7 @@ func CompileByte(ctx context.Context, specPath string) (newspec []byte, doc libo
 		}
 
 		// copy operation
-		opParam := copyParameters(op.Parameters, params...)
+		opParam := util.CopyParameters(op.Parameters, params...)
 		opID := op.OperationId
 		opSecurity := op.Security
 		*op = *uop
