@@ -4,7 +4,7 @@ Several utilities for working with openapi document.
 
 Note that this is still in very early development stage. Current limitations includes but not restricted to:
 
-- Can only handle reference to `schema`.
+- Can only bundle reference to `schema`.
 - When [bundling](#bundle), the `schema` on non-main files needs to be under `components.schemas` key
 
 ## Bundle
