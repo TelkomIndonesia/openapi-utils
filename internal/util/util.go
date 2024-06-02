@@ -210,12 +210,9 @@ func RenameAndCopySchema(ctx context.Context,
 		return fmt.Errorf("fail to recreate schema: %w", err)
 	}
 
-	name := ref.Name
-	if prefix != "" {
-		name = prefix + name
-		refname := strings.TrimSuffix(ref.Definition, ref.Name) + name
-		ref.Node.Content = base.CreateSchemaProxyRef(refname).GetReferenceNode().Content
-	}
+	name := prefix + ref.Name
+	refname := strings.TrimSuffix(ref.Definition, ref.Name) + name
+	ref.Node.Content = base.CreateSchemaProxyRef(refname).GetReferenceNode().Content
 	m.Set(name, base.NewSchemaProxy(schemaProxy))
 	return
 }
@@ -236,12 +233,9 @@ func RenameAndCopyComponent[B any, L low.Buildable[B], H high.GoesLow[L]](
 		return fmt.Errorf("fail to build object: %w", err)
 	}
 
-	name := ref.Name
-	if prefix != "" {
-		name = prefix + name
-		refname := strings.TrimSuffix(ref.Definition, ref.Name) + name
-		ref.Node.Content = base.CreateSchemaProxyRef(refname).GetReferenceNode().Content
-	}
+	name := prefix + ref.Name
+	refname := strings.TrimSuffix(ref.Definition, ref.Name) + name
+	ref.Node.Content = base.CreateSchemaProxyRef(refname).GetReferenceNode().Content
 	m.Set(name, fnew(v.Value))
 	return
 }
