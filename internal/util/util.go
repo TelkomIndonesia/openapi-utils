@@ -125,7 +125,7 @@ func SetOperation(p *v3.PathItem, method string, val *v3.Operation) {
 	}
 }
 
-func CopyModifiedComponents(ctx context.Context, src libopenapi.Document, prefix string, dst libopenapi.Document) (nsrc libopenapi.Document, err error) {
+func RenameAndCopyComponents(ctx context.Context, src libopenapi.Document, prefix string, dst libopenapi.Document) (nsrc libopenapi.Document, err error) {
 	srcv3, errs := src.BuildV3Model()
 	if err = errors.Join(errs...); err != nil {
 		return nil, fmt.Errorf("fail to build v3 model: %w", err)
@@ -137,7 +137,7 @@ func CopyModifiedComponents(ctx context.Context, src libopenapi.Document, prefix
 			continue
 		}
 
-		DuplicateSchema(ctx, ref, prefix, srcv3.Model.Components.Schemas)
+		CopySchema(ctx, ref, prefix, srcv3.Model.Components.Schemas)
 	}
 
 	// rerender
@@ -154,38 +154,38 @@ func CopyModifiedComponents(ctx context.Context, src libopenapi.Document, prefix
 	for _, ref := range srcv3.Index.GetRawReferencesSequenced() {
 		switch {
 		case strings.HasPrefix(ref.Definition, "#/components/schemas/"):
-			CopyModifiedSchema(ctx, ref, prefix, dstv3.Model.Components.Schemas)
+			RenameAndCopySchema(ctx, ref, prefix, dstv3.Model.Components.Schemas)
 
 		case strings.HasPrefix(ref.Definition, "#/components/parameters/"):
-			CopyModifiedComponent(ctx, ref, prefix, dstv3.Model.Components.Parameters, v3.NewParameter)
+			RenameAndCopyComponent(ctx, ref, prefix, dstv3.Model.Components.Parameters, v3.NewParameter)
 
 		case strings.HasPrefix(ref.Definition, "#/components/requestBodies/"):
-			CopyModifiedComponent(ctx, ref, prefix, dstv3.Model.Components.RequestBodies, v3.NewRequestBody)
+			RenameAndCopyComponent(ctx, ref, prefix, dstv3.Model.Components.RequestBodies, v3.NewRequestBody)
 
 		case strings.HasPrefix(ref.Definition, "#/components/headers/"):
-			CopyModifiedComponent(ctx, ref, prefix, dstv3.Model.Components.Headers, v3.NewHeader)
+			RenameAndCopyComponent(ctx, ref, prefix, dstv3.Model.Components.Headers, v3.NewHeader)
 
 		case strings.HasPrefix(ref.Definition, "#/components/responses/"):
-			CopyModifiedComponent(ctx, ref, prefix, dstv3.Model.Components.Responses, v3.NewResponse)
+			RenameAndCopyComponent(ctx, ref, prefix, dstv3.Model.Components.Responses, v3.NewResponse)
 
 		case strings.HasPrefix(ref.Definition, "#/components/securitySchemes/"):
-			CopyModifiedComponent(ctx, ref, prefix, dstv3.Model.Components.SecuritySchemes, v3.NewSecurityScheme)
+			RenameAndCopyComponent(ctx, ref, prefix, dstv3.Model.Components.SecuritySchemes, v3.NewSecurityScheme)
 
 		case strings.HasPrefix(ref.Definition, "#/components/examples/"):
-			CopyModifiedComponent(ctx, ref, prefix, dstv3.Model.Components.Examples, base.NewExample)
+			RenameAndCopyComponent(ctx, ref, prefix, dstv3.Model.Components.Examples, base.NewExample)
 
 		case strings.HasPrefix(ref.Definition, "#/components/links/"):
-			CopyModifiedComponent(ctx, ref, prefix, dstv3.Model.Components.Links, v3.NewLink)
+			RenameAndCopyComponent(ctx, ref, prefix, dstv3.Model.Components.Links, v3.NewLink)
 
 		case strings.HasPrefix(ref.Definition, "#/components/callbacks/"):
-			CopyModifiedComponent(ctx, ref, prefix, dstv3.Model.Components.Callbacks, v3.NewCallback)
+			RenameAndCopyComponent(ctx, ref, prefix, dstv3.Model.Components.Callbacks, v3.NewCallback)
 		}
 	}
 
 	return src, nil
 }
 
-func DuplicateSchema(ctx context.Context,
+func CopySchema(ctx context.Context,
 	ref *index.Reference,
 	prefix string,
 	m *orderedmap.Map[string, *base.SchemaProxy],
@@ -200,7 +200,7 @@ func DuplicateSchema(ctx context.Context,
 	return
 }
 
-func CopyModifiedSchema(ctx context.Context,
+func RenameAndCopySchema(ctx context.Context,
 	ref *index.Reference,
 	prefix string,
 	m *orderedmap.Map[string, *base.SchemaProxy],
@@ -210,14 +210,17 @@ func CopyModifiedSchema(ctx context.Context,
 		return fmt.Errorf("fail to recreate schema: %w", err)
 	}
 
-	name := prefix + ref.Name
-	refname := strings.TrimSuffix(ref.Definition, ref.Name) + name
-	ref.Node.Content = base.CreateSchemaProxyRef(refname).GetReferenceNode().Content
+	name := ref.Name
+	if prefix != "" {
+		name = prefix + name
+		refname := strings.TrimSuffix(ref.Definition, ref.Name) + name
+		ref.Node.Content = base.CreateSchemaProxyRef(refname).GetReferenceNode().Content
+	}
 	m.Set(name, base.NewSchemaProxy(schemaProxy))
 	return
 }
 
-func CopyModifiedComponent[B any, L low.Buildable[B], H high.GoesLow[L]](
+func RenameAndCopyComponent[B any, L low.Buildable[B], H high.GoesLow[L]](
 	ctx context.Context,
 	ref *index.Reference,
 	prefix string,
@@ -233,9 +236,12 @@ func CopyModifiedComponent[B any, L low.Buildable[B], H high.GoesLow[L]](
 		return fmt.Errorf("fail to build object: %w", err)
 	}
 
-	name := prefix + ref.Name
-	refname := strings.TrimSuffix(ref.Definition, ref.Name) + name
-	ref.Node.Content = base.CreateSchemaProxyRef(refname).GetReferenceNode().Content
+	name := ref.Name
+	if prefix != "" {
+		name = prefix + name
+		refname := strings.TrimSuffix(ref.Definition, ref.Name) + name
+		ref.Node.Content = base.CreateSchemaProxyRef(refname).GetReferenceNode().Content
+	}
 	m.Set(name, fnew(v.Value))
 	return
 }
