@@ -81,26 +81,73 @@ type ProxyOperation struct {
 	Path   string `json:"path" yaml:"path"`
 	Method string `json:"method" yaml:"method"`
 	Inject Inject `json:"inject" yaml:"inject"`
+
+	up      *v3.PathItem
+	uop     *v3.Operation
+	uparams []*v3.Parameter
 }
 
-func (pop ProxyOperation) GetUpstreamOperation() (uop *v3.Operation, err error) {
-	doc, err := pop.GetOpenAPIDoc()
-	if err != nil {
-		return nil, fmt.Errorf("fail to load `x-proxy` :%w", err)
+func (pop ProxyOperation) WithReloadedDoc(doc libopenapi.Document) ProxyOperation {
+	npop := ProxyOperation{
+		Proxy: &Proxy{
+			doc: doc,
+		},
+		Path:   pop.Path,
+		Method: pop.Method,
+		Inject: pop.Inject,
+	}
+	if pop.Proxy != nil {
+		npop.Name = pop.Name
+		npop.Spec = pop.Spec
+	}
+	return npop
+}
+
+func (pop *ProxyOperation) GetUpstreamOperation() (uop *v3.Operation, err error) {
+	if pop.uop == nil {
+		doc, err := pop.GetOpenAPIDoc()
+		if err != nil {
+			return nil, fmt.Errorf("fail to load `x-proxy` :%w", err)
+		}
+
+		docv3, _ := doc.BuildV3Model()
+		up, ok := docv3.Model.Paths.PathItems.Get(pop.Path)
+		if !ok {
+			return nil, fmt.Errorf("path '%s' not found inside upstream doc", pop.Path)
+		}
+
+		uop = getOperation(up, pop.Method)
+		if uop == nil {
+			return nil, fmt.Errorf("operation '%s %s' not found inside upstream doc", pop.Method, pop.Path)
+		}
+
+		pop.up = up
+		pop.uop = uop
 	}
 
-	docv3, _ := doc.BuildV3Model()
-	val, ok := docv3.Model.Paths.PathItems.Get(pop.Path)
-	if !ok {
-		return nil, fmt.Errorf("path '%s' not found inside upstream doc", pop.Path)
+	return pop.uop, nil
+}
+
+func (pop *ProxyOperation) GetProxiedParameter() (uparams []*v3.Parameter, err error) {
+	if pop.uparams == nil {
+		if _, err = pop.GetUpstreamOperation(); err != nil {
+			return nil, err
+		}
+
+		injectedParamMap := map[parameterKey]struct{}{}
+		for _, p := range pop.Inject.Parameters {
+			injectedParamMap[parameterKey{name: p.Name, in: p.In}] = struct{}{}
+		}
+		for _, p := range copyParameters(pop.uop.Parameters, pop.up.Parameters...) {
+			if _, ok := injectedParamMap[parameterKey{name: p.Name, in: p.In}]; ok {
+				continue
+			}
+			pop.uparams = append(pop.uparams, p)
+		}
+
 	}
 
-	uop = getOperation(val, pop.Method)
-	if uop == nil {
-		return nil, fmt.Errorf("operation '%s %s' not found inside upstream doc", pop.Method, pop.Path)
-	}
-
-	return
+	return pop.uparams, nil
 }
 
 type Inject struct {

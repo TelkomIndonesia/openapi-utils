@@ -53,35 +53,22 @@ func CompileByte(ctx context.Context, specPath string) (newspec []byte, doc libo
 
 	// compile proxy document
 	for op, pop := range pe.proxied {
-		ud, ok := proxyOperationUpstreamDocs[pop]
+		doc, ok := proxyOperationUpstreamDocs[pop]
 		if !ok {
 			continue
 		}
-
-		// find upstream path operation, with parameter inherited from upstream path
-		udv3, _ := ud.BuildV3Model()
-		up, ok := udv3.Model.Paths.PathItems.Get(pop.Path)
-		if !ok {
-			continue
+		*pop = pop.WithReloadedDoc(doc)
+		uop, err := pop.GetUpstreamOperation()
+		if err != nil {
+			return nil, nil, nil, err
 		}
-		uop := getOperation(up, pop.Method)
-		if uop == nil {
-			continue
-		}
-		var uParams []*v3.Parameter
-		injectedParamMap := map[parameterKey]struct{}{}
-		for _, p := range pop.Inject.Parameters {
-			injectedParamMap[parameterKey{name: p.Name, in: p.In}] = struct{}{}
-		}
-		for _, p := range copyParameters(up.Parameters, uop.Parameters...) {
-			if _, ok := injectedParamMap[parameterKey{name: p.Name, in: p.In}]; ok {
-				continue
-			}
-			uParams = append(uParams, p)
+		params, err := pop.GetProxiedParameter()
+		if err != nil {
+			return nil, nil, nil, err
 		}
 
 		// copy operation
-		opParam := copyParameters(op.Parameters, uParams...)
+		opParam := copyParameters(op.Parameters, params...)
 		opID := op.OperationId
 		opSecurity := op.Security
 		*op = *uop
