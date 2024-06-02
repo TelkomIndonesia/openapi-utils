@@ -4,92 +4,21 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"path"
 
 	"github.com/pb33f/libopenapi"
 	v3 "github.com/pb33f/libopenapi/datamodel/high/v3"
 	"github.com/pb33f/libopenapi/orderedmap"
-	"github.com/telkomindonesia/openapi-utils/cmd/proxy/internal/proxy/config"
 )
 
-func CompileByte(ctx context.Context, specBytes []byte, specDir string) (newspec []byte, doc libopenapi.Document, docv3 *libopenapi.DocumentModel[v3.Document], err error) {
-	proxyDoc, err := libopenapi.NewDocument([]byte(specBytes))
+func CompileByte(ctx context.Context, specPath string) (newspec []byte, doc libopenapi.Document, docv3 *libopenapi.DocumentModel[v3.Document], err error) {
+	pe, err := NewProxyExtension(ctx, specPath)
 	if err != nil {
-		return nil, nil, nil, fmt.Errorf("failed to create openapi document: %w", err)
-	}
-	proxyDocv3, errs := proxyDoc.BuildV3Model()
-	if err = errors.Join(errs...); err != nil {
-		return nil, nil, nil, fmt.Errorf("failed to create openapi v3 document: %w", err)
-	}
-	initComponents(proxyDocv3)
-
-	// build the proxy
-	proxies := map[string]*config.Proxy{}
-	if proxyDocv3.Model.Components.Extensions != nil {
-		ex, ok := proxyDocv3.Model.Components.Extensions.Get("x-proxy")
-		if ok {
-			if err = ex.Decode(proxies); err != nil {
-				return nil, nil, nil, fmt.Errorf("fail to decode `x-proxy` component :%w", err)
-			}
-			for k, v := range proxies {
-				v.Name = k
-				v.Spec = path.Join(specDir, v.Spec)
-			}
-		}
-	}
-	proxyOperations := map[*config.ProxyOperation]*v3.Operation{}
-	upstreamDocs := map[libopenapi.Document]map[*config.ProxyOperation]*v3.Operation{}
-	for m := range orderedmap.Iterate(ctx, proxyDocv3.Model.Paths.PathItems) {
-		for _, op := range getOperationsMap(m.Value()) {
-			if op.Extensions == nil {
-				continue
-			}
-
-			ex, ok := op.Extensions.Get("x-proxy")
-			if !ok {
-				continue
-			}
-
-			var pop config.ProxyOperation
-			err = ex.Decode(&pop)
-			if err != nil {
-				return nil, nil, nil, fmt.Errorf("fail to decode Proxy Operation : %w", err)
-			}
-
-			if pop.Spec == "" && pop.Proxy != nil && pop.Proxy.Name != "" {
-				pop.Proxy, ok = proxies[pop.Name]
-				if !ok {
-					return nil, nil, nil, fmt.Errorf("invalid proxy definition for %s: no spec is provided", pop.Proxy.Name)
-				}
-			} else {
-				pop.Spec = path.Join(specDir, pop.Spec)
-			}
-
-			doc, err := pop.GetOpenAPIDoc()
-			if err != nil {
-				return nil, nil, nil, fmt.Errorf("fail to load `x-proxy` :%w", err)
-			}
-			if _, ok := upstreamDocs[doc]; !ok {
-				upstreamDocs[doc] = map[*config.ProxyOperation]*v3.Operation{}
-			}
-			docv3, _ := doc.BuildV3Model()
-			val, ok := docv3.Model.Paths.PathItems.Get(pop.Path)
-			if !ok {
-				continue
-			}
-			uop := getOperation(val, pop.Method)
-			if uop == nil {
-				continue
-			}
-
-			proxyOperations[&pop] = op
-			upstreamDocs[doc][&pop] = uop
-		}
+		return nil, nil, nil, err
 	}
 
 	// copy components to proxy doc
-	proxyOperationUpstreamDocs := map[*config.ProxyOperation]libopenapi.Document{}
-	for doc, popmap := range upstreamDocs {
+	proxyOperationUpstreamDocs := map[*ProxyOperation]libopenapi.Document{}
+	for doc, popmap := range pe.upstream {
 		docV3, _ := doc.BuildV3Model()
 
 		// delete unused operation
@@ -108,8 +37,8 @@ func CompileByte(ctx context.Context, specBytes []byte, specDir string) (newspec
 		}
 
 		// copy components with new prefix
-		prefix := firstKey(popmap).GetName()
-		doc, err := modCopyComponents(ctx, doc, prefix, proxyDoc)
+		prefix := firstEntry(popmap).key.GetName()
+		doc, err := modCopyComponents(ctx, doc, prefix, pe.doc)
 		if err != nil {
 			return nil, nil, nil, fmt.Errorf("fail to copy components : %w", err)
 		}
@@ -121,7 +50,7 @@ func CompileByte(ctx context.Context, specBytes []byte, specDir string) (newspec
 	}
 
 	// compile proxy document
-	for pop, op := range proxyOperations {
+	for op, pop := range pe.proxied {
 		ud, ok := proxyOperationUpstreamDocs[pop]
 		if !ok {
 			continue
@@ -158,7 +87,7 @@ func CompileByte(ctx context.Context, specBytes []byte, specDir string) (newspec
 		op.OperationId = opID
 		op.Security = opSecurity
 	}
-	by, proxyDoc, proxyDocv3, errs := proxyDoc.RenderAndReload()
+	by, proxyDoc, proxyDocv3, errs := pe.doc.RenderAndReload()
 
 	return by, proxyDoc, proxyDocv3, errors.Join(errs...)
 }

@@ -1,4 +1,4 @@
-package config
+package proxy
 
 import (
 	"log/slog"

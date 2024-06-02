@@ -1,4 +1,4 @@
-package config
+package proxy
 
 import (
 	"errors"
@@ -54,18 +54,18 @@ func (p *Proxy) GetOpenAPIDoc() (doc libopenapi.Document, err error) {
 	return p.doc, nil
 }
 
-func (p *Proxy) GetOpenAPIV3Doc() (doc *libopenapi.DocumentModel[v3.Document], err error) {
-	if p.doc == nil {
-		err = p.buildOpenapiDocument()
-		if err != nil {
-			return doc, err
-		}
+func (p *Proxy) GetOpenAPIV3Doc() (docv3 *libopenapi.DocumentModel[v3.Document], err error) {
+	doc, err := p.GetOpenAPIDoc()
+	if err != nil {
+		return
 	}
 
-	doc, errs := p.doc.BuildV3Model()
+	docv3, errs := doc.BuildV3Model()
 	err = errors.Join(errs...)
 	return
 }
+
+var nonAlphaNum = regexp.MustCompile("[^a-zA-Z0-9]")
 
 func (p Proxy) GetName() string {
 	if p.Name == "" {
@@ -83,7 +83,25 @@ type ProxyOperation struct {
 	Inject Inject `json:"inject" yaml:"inject"`
 }
 
-var nonAlphaNum = regexp.MustCompile("[^a-zA-Z0-9]")
+func (pop ProxyOperation) GetUpstreamOperation() (uop *v3.Operation, err error) {
+	doc, err := pop.GetOpenAPIDoc()
+	if err != nil {
+		return nil, fmt.Errorf("fail to load `x-proxy` :%w", err)
+	}
+
+	docv3, _ := doc.BuildV3Model()
+	val, ok := docv3.Model.Paths.PathItems.Get(pop.Path)
+	if !ok {
+		return nil, fmt.Errorf("path '%s' not found inside upstream doc", pop.Path)
+	}
+
+	uop = getOperation(val, pop.Method)
+	if uop == nil {
+		return nil, fmt.Errorf("operation '%s %s' not found inside upstream doc", pop.Method, pop.Path)
+	}
+
+	return
+}
 
 type Inject struct {
 	Parameters []*ExcludedParameter `json:"parameters,omitempty" yaml:"parameters,omitempty"`

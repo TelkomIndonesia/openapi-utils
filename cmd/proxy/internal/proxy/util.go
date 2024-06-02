@@ -261,9 +261,18 @@ func copyParameters(src []*v3.Parameter, add ...*v3.Parameter) (dst []*v3.Parame
 	return
 }
 
-func firstKey[K comparable, V any](m map[K]V) (k K) {
-	for k = range m {
-		return
+func firstEntry[K comparable, V any](m map[K]V) (e struct {
+	key   K
+	value V
+}) {
+	for k, v := range m {
+		return struct {
+			key   K
+			value V
+		}{
+			key:   k,
+			value: v,
+		}
 	}
 	return
 }
