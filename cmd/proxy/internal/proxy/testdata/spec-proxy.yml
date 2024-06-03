@@ -4,6 +4,8 @@ info:
   version: "1.0.0"
 servers:
   - url: "http://localhost"
+security:
+  - {}
 paths:
   "/profiles/{profile-id}":
     get:
