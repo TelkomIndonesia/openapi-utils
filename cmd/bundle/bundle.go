@@ -74,12 +74,10 @@ func bundle(doc libopenapi.Document, inline bool) (b []byte, err error) {
 				continue
 			}
 
-			fmt.Println("=====", sequenced.FullDefinition)
 			err := util.CopyComponentAndRenameRef(context.Background(), sequenced, "", docv3)
 			if err != nil {
 				return fmt.Errorf("fail to copy components: %w", err)
 			}
-
 		}
 		return
 	}
