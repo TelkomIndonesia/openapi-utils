@@ -90,8 +90,7 @@ func (pe *ProxyExtension) loadProxied(ctx context.Context) (err error) {
 			}
 
 			var pop ProxyOperation
-			err = ex.Decode(&pop)
-			if err != nil {
+			if err = ex.Decode(&pop); err != nil {
 				return fmt.Errorf("fail to decode Proxy Operation : %w", err)
 			}
 			if pop.Spec == "" && pop.Proxy != nil && pop.Proxy.Name != "" {
