@@ -89,6 +89,23 @@ func InitComponents(doc *libopenapi.DocumentModel[v3.Document]) {
 	doc.Model.Components = comp
 }
 
+func CopyComponentAndRenameRef(
+	ctx context.Context,
+	src *index.Reference,
+	prefix string,
+	dst *v3.Components,
+) (err error) {
+	err = CopyComponent(ctx, src, prefix, dst)
+	if err != nil {
+		return
+	}
+
+	name := prefix + src.Name
+	refname := strings.TrimSuffix(src.Definition, src.Name) + name
+	src.Node.Content = base.CreateSchemaProxyRef(refname).GetReferenceNode().Content
+	return nil
+}
+
 func CopyComponent(
 	ctx context.Context,
 	src *index.Reference,
@@ -126,60 +143,6 @@ func CopyComponent(
 	return nil
 }
 
-func CopyComponentAndRenameRef(
-	ctx context.Context,
-	src *index.Reference,
-	prefix string,
-	dst *v3.Components,
-) (err error) {
-	switch {
-	case strings.HasPrefix(src.Definition, "#/components/schemas/"):
-		return copySchemaAndRenameRef(ctx, src, prefix, dst.Schemas)
-
-	case strings.HasPrefix(src.Definition, "#/components/parameters/"):
-		return copyComponentAndRenameRef(ctx, src, prefix, dst.Parameters, v3.NewParameter)
-
-	case strings.HasPrefix(src.Definition, "#/components/requestBodies/"):
-		return copyComponentAndRenameRef(ctx, src, prefix, dst.RequestBodies, v3.NewRequestBody)
-
-	case strings.HasPrefix(src.Definition, "#/components/headers/"):
-		return copyComponentAndRenameRef(ctx, src, prefix, dst.Headers, v3.NewHeader)
-
-	case strings.HasPrefix(src.Definition, "#/components/responses/"):
-		return copyComponentAndRenameRef(ctx, src, prefix, dst.Responses, v3.NewResponse)
-
-	case strings.HasPrefix(src.Definition, "#/components/securitySchemes/"):
-		return copyComponentAndRenameRef(ctx, src, prefix, dst.SecuritySchemes, v3.NewSecurityScheme)
-
-	case strings.HasPrefix(src.Definition, "#/components/examples/"):
-		return copyComponentAndRenameRef(ctx, src, prefix, dst.Examples, base.NewExample)
-
-	case strings.HasPrefix(src.Definition, "#/components/links/"):
-		return copyComponentAndRenameRef(ctx, src, prefix, dst.Links, v3.NewLink)
-
-	case strings.HasPrefix(src.Definition, "#/components/callbacks/"):
-		return copyComponentAndRenameRef(ctx, src, prefix, dst.Callbacks, v3.NewCallback)
-	}
-
-	return nil
-}
-
-func copySchemaAndRenameRef(
-	ctx context.Context,
-	src *index.Reference,
-	prefix string,
-	dst *orderedmap.Map[string, *base.SchemaProxy],
-) (err error) {
-	if err = copySchema(ctx, src, prefix, dst); err != nil {
-		return
-	}
-
-	name := prefix + src.Name
-	refname := strings.TrimSuffix(src.Definition, src.Name) + name
-	src.Node.Content = base.CreateSchemaProxyRef(refname).GetReferenceNode().Content
-	return
-}
-
 func copySchema(
 	ctx context.Context,
 	src *index.Reference,
@@ -193,23 +156,6 @@ func copySchema(
 
 	name := prefix + src.Name
 	dst.Set(name, base.NewSchemaProxy(schemaProxy))
-	return
-}
-
-func copyComponentAndRenameRef[B any, L low.Buildable[B], H high.GoesLow[L]](
-	ctx context.Context,
-	src *index.Reference,
-	prefix string,
-	dst *orderedmap.Map[string, H],
-	fnew func(L) H,
-) (err error) {
-	if err = copyComponent(ctx, src, prefix, dst, fnew); err != nil {
-		return
-	}
-
-	name := prefix + src.Name
-	refname := strings.TrimSuffix(src.Definition, src.Name) + name
-	src.Node.Content = base.CreateSchemaProxyRef(refname).GetReferenceNode().Content
 	return
 }
 
