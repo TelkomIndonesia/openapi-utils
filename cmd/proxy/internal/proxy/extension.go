@@ -88,6 +88,7 @@ func (pe *ProxyExtension) loadProxied(ctx context.Context) (err error) {
 			if !ok {
 				continue
 			}
+
 			var pop ProxyOperation
 			err = ex.Decode(&pop)
 			if err != nil {
