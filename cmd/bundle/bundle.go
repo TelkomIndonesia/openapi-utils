@@ -93,7 +93,7 @@ func bundle(doc libopenapi.Document, inline bool) (b []byte, err error) {
 
 			err := util.CopyComponentAndRenameRef(context.Background(), ref, "", docv3.Model.Components)
 			if err != nil {
-				return fmt.Errorf("fail to copy components: %w", err)
+				return fmt.Errorf("fail to copy components '%s': %w", ref.FullDefinition, err)
 			}
 		}
 		return
