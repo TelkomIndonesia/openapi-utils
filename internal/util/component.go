@@ -17,6 +17,40 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
+func CopyComponentsAndRenameRefs(ctx context.Context, src libopenapi.Document, prefix string, dst libopenapi.Document) (nsrc libopenapi.Document, err error) {
+	srcv3, errs := src.BuildV3Model()
+	if err = errors.Join(errs...); err != nil {
+		return nil, fmt.Errorf("fail to build src v3 model: %w", err)
+	}
+
+	// duplicate schema on source doc with added prefix
+	for _, ref := range srcv3.Index.GetRawReferencesSequenced() {
+		if !strings.HasPrefix(ref.Definition, "#/components/schemas/") {
+			continue
+		}
+
+		copySchema(ctx, ref, prefix, srcv3.Model.Components.Schemas)
+	}
+
+	// rerender
+	_, src, srcv3, errs = src.RenderAndReload()
+	if err := errors.Join(errs...); err != nil {
+		return nil, fmt.Errorf("faill to render and reload openapi doc: %w", err)
+	}
+
+	// copy all components
+	dstv3, errs := dst.BuildV3Model()
+	if err = errors.Join(errs...); err != nil {
+		return nil, fmt.Errorf("fail to build dst v3 model: %w", err)
+	}
+
+	InitComponents(dstv3)
+	for _, ref := range srcv3.Index.GetRawReferencesSequenced() {
+		err = CopyComponentAndRenameRef(ctx, ref, prefix, dstv3.Model.Components)
+	}
+	return src, err
+}
+
 func InitComponents(doc *libopenapi.DocumentModel[v3.Document]) {
 	comp := doc.Model.Components
 	if comp == nil {
@@ -53,40 +87,6 @@ func InitComponents(doc *libopenapi.DocumentModel[v3.Document]) {
 		comp.Callbacks = orderedmap.New[string, *v3.Callback]()
 	}
 	doc.Model.Components = comp
-}
-
-func CopyDocComponentsAndRenameRef(ctx context.Context, src libopenapi.Document, prefix string, dst libopenapi.Document) (nsrc libopenapi.Document, err error) {
-	srcv3, errs := src.BuildV3Model()
-	if err = errors.Join(errs...); err != nil {
-		return nil, fmt.Errorf("fail to build src v3 model: %w", err)
-	}
-
-	// duplicate schema on source doc with added prefix
-	for _, ref := range srcv3.Index.GetRawReferencesSequenced() {
-		if !strings.HasPrefix(ref.Definition, "#/components/schemas/") {
-			continue
-		}
-
-		copySchema(ctx, ref, prefix, srcv3.Model.Components.Schemas)
-	}
-
-	// rerender
-	_, src, srcv3, errs = src.RenderAndReload()
-	if err := errors.Join(errs...); err != nil {
-		return nil, fmt.Errorf("faill to render and reload openapi doc: %w", err)
-	}
-
-	// copy all components
-	dstv3, errs := dst.BuildV3Model()
-	if err = errors.Join(errs...); err != nil {
-		return nil, fmt.Errorf("fail to build dst v3 model: %w", err)
-	}
-
-	InitComponents(dstv3)
-	for _, ref := range srcv3.Index.GetRawReferencesSequenced() {
-		err = CopyComponentAndRenameRef(ctx, ref, prefix, dstv3.Model.Components)
-	}
-	return src, err
 }
 
 func CopyComponent(ctx context.Context,
