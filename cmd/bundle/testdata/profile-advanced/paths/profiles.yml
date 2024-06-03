@@ -1,0 +1,30 @@
+parameters:
+  - name: tenant-id
+    required: true
+    in: path
+    schema:
+      $ref: "../components/base.yml#/components/schemas/UUID"
+post:
+  summary: "create profile"
+  operationId: PostProfile
+  parameters:
+    - name: "validate"
+      in: query
+      schema:
+        type: boolean
+  requestBody:
+    required: true
+    content:
+      "application/json":
+        schema:
+          $ref: "../components/profile.yml#/components/schemas/CreateProfile"
+  responses:
+    "201":
+      description: success
+      content:
+        "application/json":
+          schema:
+            allOf:
+              - $ref: "../components/profile.yml#/components/schemas/Profile"
+    "400":
+      description: bad request

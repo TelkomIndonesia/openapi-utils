@@ -1,0 +1,51 @@
+parameters:
+  - name: tenant-id
+    required: true
+    in: path
+    schema:
+      $ref: "../components/base.yml#/components/schemas/UUID"
+  - $ref: "../components/profile.yml#/components/parameters/ProfileID"
+get:
+  security:
+    - {}
+  summary: "get profile"
+  operationId: "GetProfile"
+  responses:
+    "200":
+      $ref: "../components/profile.yml#/components/responses/Profile"
+    "404":
+      $ref: "../components/profile.yml#/components/responses/ProfileNotFound"
+    "500":
+      description: "Error"
+      content:
+        application/json:
+          schema:
+            properties:
+              message:
+                $ref: "../components/base.yml#/components/schemas/ZeroableString"
+put:
+  summary: "Create/Update profile"
+  operationId: PutProfile
+  requestBody:
+    $ref: "../components/profile.yml#/components/requestBodies/Profile"
+  responses:
+    "201":
+      description: success
+      content:
+        "application/json":
+          schema:
+            $ref: "../components/profile.yml#/components/schemas/Profile"
+    "400":
+      description: bad request
+delete:
+  security:
+    - {}
+  summary: "get profile"
+  operationId: "DeleteProfile"
+  responses:
+    "204":
+      description: no content
+    "400":
+      description: bad request
+    "500":
+      description: server error

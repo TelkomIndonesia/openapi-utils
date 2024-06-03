@@ -1,0 +1,22 @@
+components:
+  schemas:
+    UUID:
+      type: string
+      format: uuid
+      x-go-type-skip-optional-pointer: true
+    ZeroableString:
+      type: string
+      x-go-type-skip-optional-pointer: true
+    ZeroableTime:
+      type: string
+      format: date-time
+      x-go-type-skip-optional-pointer: true
+  responses:
+    Error:
+      description: "not found"
+      content:
+        "application/json":
+          schema:
+            properties:
+              id:
+                $ref: "base.yml#/components/schemas/UUID"

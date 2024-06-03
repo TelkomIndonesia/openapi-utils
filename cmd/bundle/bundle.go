@@ -32,10 +32,18 @@ func bundleFile(p string) (bytes []byte, err error) {
 		return nil, fmt.Errorf("fail to load openapi spec: %w", err)
 	}
 
-	bytes, err = bundle(doc, true)
+	bytes, err = bundle(doc, false)
 	if err != nil {
-		return nil, fmt.Errorf("fail to bundle :%w", err)
+		return nil, fmt.Errorf("fail to bundle: %w", err)
 	}
+	// docv3, errs := doc.BuildV3Model()
+	// if len(errs) > 0 {
+	// 	return nil, fmt.Errorf("fail to re-build openapi spec: %w", errors.Join(errs...))
+	// }
+	// bytes, err = bundler.BundleDocument(&docv3.Model)
+	// if err != nil {
+	// 	return nil, fmt.Errorf("fail to bundle: %w", err)
+	// }
 	return
 }
 
@@ -46,35 +54,44 @@ func bundle(doc libopenapi.Document, inline bool) (b []byte, err error) {
 	}
 	util.InitComponents(docv3)
 
-	compact := func(idx *index.SpecIndex, root bool) (err error) {
-		sequencedReferences := idx.GetRawReferencesSequenced()
+	shouldSkip := func(sequenced *index.Reference, idx *index.SpecIndex, root bool) bool {
 		mappedReferences := idx.GetMappedReferences()
-		for _, sequenced := range sequencedReferences {
-			// if we're in the root document, don't bundle anything.
-			refExp := strings.Split(sequenced.FullDefinition, "#/")
-			if len(refExp) == 2 {
-				if refExp[0] == sequenced.Index.GetSpecAbsolutePath() || refExp[0] == "" {
-					if root && !inline {
-						idx.GetLogger().Debug("[bundler] skipping local root reference",
-							"ref", sequenced.Definition)
-						continue
-					}
+
+		// if we're in the root document, don't bundle anything.
+		refExp := strings.Split(sequenced.FullDefinition, "#/")
+		if len(refExp) == 2 {
+			if refExp[0] == sequenced.Index.GetSpecAbsolutePath() || refExp[0] == "" {
+				if root && !inline {
+					idx.GetLogger().Debug("[bundler] skipping local root reference",
+						"ref", sequenced.Definition)
+					return true
 				}
 			}
+		}
 
-			mappedReference := mappedReferences[sequenced.FullDefinition]
-			if mappedReference == nil {
+		mappedReference := mappedReferences[sequenced.FullDefinition]
+		if mappedReference == nil {
+			return true
+		}
+
+		if mappedReference.Circular {
+			if idx.GetLogger() != nil {
+				idx.GetLogger().Warn("[bundler] skipping circular reference",
+					"ref", sequenced.FullDefinition)
+			}
+			return true
+		}
+
+		return false
+	}
+
+	compact := func(idx *index.SpecIndex, root bool) (err error) {
+		for _, ref := range idx.GetRawReferencesSequenced() {
+			if shouldSkip(ref, idx, root) {
 				continue
 			}
-			if mappedReference.Circular {
-				if idx.GetLogger() != nil {
-					idx.GetLogger().Warn("[bundler] skipping circular reference",
-						"ref", sequenced.FullDefinition)
-				}
-				continue
-			}
 
-			err := util.CopyComponentAndRenameRef(context.Background(), sequenced, "", docv3.Model.Components)
+			err := util.CopyComponentAndRenameRef(context.Background(), ref, "", docv3.Model.Components)
 			if err != nil {
 				return fmt.Errorf("fail to copy components: %w", err)
 			}

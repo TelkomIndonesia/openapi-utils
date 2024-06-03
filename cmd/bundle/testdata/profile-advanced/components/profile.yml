@@ -1,0 +1,66 @@
+components:
+  parameters:
+    ProfileID:
+      name: profile-id
+      in: path
+      required: true
+      schema:
+        $ref: "base.yml#/components/schemas/UUID"
+
+  requestBodies:
+    Profile:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Profile"
+
+  responses:
+    Profile:
+      description: "success"
+      headers:
+        TraceID:
+          $ref: "#/components/headers/TraceID"
+      content:
+        "application/json":
+          schema:
+            $ref: "#/components/schemas/Profile"
+
+    ProfileNotFound:
+      $ref: "base.yml#/components/responses/Error"
+
+  headers:
+    TraceID:
+      schema:
+        $ref: "base.yml#/components/schemas/ZeroableString"
+
+  schemas:
+    CreateProfile:
+      properties:
+        nin:
+          $ref: "base.yml#/components/schemas/ZeroableString"
+        name:
+          $ref: "base.yml#/components/schemas/ZeroableString"
+        email:
+          $ref: "base.yml#/components/schemas/ZeroableString"
+        phone:
+          $ref: "base.yml#/components/schemas/ZeroableString"
+        dob:
+          $ref: "base.yml#/components/schemas/ZeroableTime"
+
+    Profile:
+      properties:
+        id:
+          $ref: "base.yml#/components/schemas/UUID"
+        tenant_id:
+          $ref: "base.yml#/components/schemas/UUID"
+        nin:
+          $ref: "base.yml#/components/schemas/ZeroableString"
+        name:
+          $ref: "base.yml#/components/schemas/ZeroableString"
+        email:
+          $ref: "base.yml#/components/schemas/ZeroableString"
+        phone:
+          $ref: "base.yml#/components/schemas/ZeroableString"
+        dob:
+          $ref: "base.yml#/components/schemas/ZeroableTime"
