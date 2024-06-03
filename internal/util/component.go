@@ -89,143 +89,147 @@ func InitComponents(doc *libopenapi.DocumentModel[v3.Document]) {
 	doc.Model.Components = comp
 }
 
-func CopyComponent(ctx context.Context,
-	ref *index.Reference,
+func CopyComponent(
+	ctx context.Context,
+	src *index.Reference,
 	prefix string,
 	dst *v3.Components,
 ) (err error) {
 	switch {
-	case strings.HasPrefix(ref.Definition, "#/components/schemas/"):
-		return copySchema(ctx, ref, prefix, dst.Schemas)
+	case strings.HasPrefix(src.Definition, "#/components/schemas/"):
+		return copySchema(ctx, src, prefix, dst.Schemas)
 
-	case strings.HasPrefix(ref.Definition, "#/components/parameters/"):
-		return copyComponent(ctx, ref, prefix, dst.Parameters, v3.NewParameter)
+	case strings.HasPrefix(src.Definition, "#/components/parameters/"):
+		return copyComponent(ctx, src, prefix, dst.Parameters, v3.NewParameter)
 
-	case strings.HasPrefix(ref.Definition, "#/components/requestBodies/"):
-		return copyComponent(ctx, ref, prefix, dst.RequestBodies, v3.NewRequestBody)
+	case strings.HasPrefix(src.Definition, "#/components/requestBodies/"):
+		return copyComponent(ctx, src, prefix, dst.RequestBodies, v3.NewRequestBody)
 
-	case strings.HasPrefix(ref.Definition, "#/components/headers/"):
-		return copyComponent(ctx, ref, prefix, dst.Headers, v3.NewHeader)
+	case strings.HasPrefix(src.Definition, "#/components/headers/"):
+		return copyComponent(ctx, src, prefix, dst.Headers, v3.NewHeader)
 
-	case strings.HasPrefix(ref.Definition, "#/components/responses/"):
-		return copyComponent(ctx, ref, prefix, dst.Responses, v3.NewResponse)
+	case strings.HasPrefix(src.Definition, "#/components/responses/"):
+		return copyComponent(ctx, src, prefix, dst.Responses, v3.NewResponse)
 
-	case strings.HasPrefix(ref.Definition, "#/components/securitySchemes/"):
-		return copyComponent(ctx, ref, prefix, dst.SecuritySchemes, v3.NewSecurityScheme)
+	case strings.HasPrefix(src.Definition, "#/components/securitySchemes/"):
+		return copyComponent(ctx, src, prefix, dst.SecuritySchemes, v3.NewSecurityScheme)
 
-	case strings.HasPrefix(ref.Definition, "#/components/examples/"):
-		return copyComponent(ctx, ref, prefix, dst.Examples, base.NewExample)
+	case strings.HasPrefix(src.Definition, "#/components/examples/"):
+		return copyComponent(ctx, src, prefix, dst.Examples, base.NewExample)
 
-	case strings.HasPrefix(ref.Definition, "#/components/links/"):
-		return copyComponent(ctx, ref, prefix, dst.Links, v3.NewLink)
+	case strings.HasPrefix(src.Definition, "#/components/links/"):
+		return copyComponent(ctx, src, prefix, dst.Links, v3.NewLink)
 
-	case strings.HasPrefix(ref.Definition, "#/components/callbacks/"):
-		return copyComponent(ctx, ref, prefix, dst.Callbacks, v3.NewCallback)
+	case strings.HasPrefix(src.Definition, "#/components/callbacks/"):
+		return copyComponent(ctx, src, prefix, dst.Callbacks, v3.NewCallback)
 	}
 	return nil
 }
 
-func CopyComponentAndRenameRef(ctx context.Context,
-	ref *index.Reference,
+func CopyComponentAndRenameRef(
+	ctx context.Context,
+	src *index.Reference,
 	prefix string,
 	dst *v3.Components,
 ) (err error) {
 	switch {
-	case strings.HasPrefix(ref.Definition, "#/components/schemas/"):
-		return copySchemaAndRenameRef(ctx, ref, prefix, dst.Schemas)
+	case strings.HasPrefix(src.Definition, "#/components/schemas/"):
+		return copySchemaAndRenameRef(ctx, src, prefix, dst.Schemas)
 
-	case strings.HasPrefix(ref.Definition, "#/components/parameters/"):
-		return copyComponentAndRenameRef(ctx, ref, prefix, dst.Parameters, v3.NewParameter)
+	case strings.HasPrefix(src.Definition, "#/components/parameters/"):
+		return copyComponentAndRenameRef(ctx, src, prefix, dst.Parameters, v3.NewParameter)
 
-	case strings.HasPrefix(ref.Definition, "#/components/requestBodies/"):
-		return copyComponentAndRenameRef(ctx, ref, prefix, dst.RequestBodies, v3.NewRequestBody)
+	case strings.HasPrefix(src.Definition, "#/components/requestBodies/"):
+		return copyComponentAndRenameRef(ctx, src, prefix, dst.RequestBodies, v3.NewRequestBody)
 
-	case strings.HasPrefix(ref.Definition, "#/components/headers/"):
-		return copyComponentAndRenameRef(ctx, ref, prefix, dst.Headers, v3.NewHeader)
+	case strings.HasPrefix(src.Definition, "#/components/headers/"):
+		return copyComponentAndRenameRef(ctx, src, prefix, dst.Headers, v3.NewHeader)
 
-	case strings.HasPrefix(ref.Definition, "#/components/responses/"):
-		return copyComponentAndRenameRef(ctx, ref, prefix, dst.Responses, v3.NewResponse)
+	case strings.HasPrefix(src.Definition, "#/components/responses/"):
+		return copyComponentAndRenameRef(ctx, src, prefix, dst.Responses, v3.NewResponse)
 
-	case strings.HasPrefix(ref.Definition, "#/components/securitySchemes/"):
-		return copyComponentAndRenameRef(ctx, ref, prefix, dst.SecuritySchemes, v3.NewSecurityScheme)
+	case strings.HasPrefix(src.Definition, "#/components/securitySchemes/"):
+		return copyComponentAndRenameRef(ctx, src, prefix, dst.SecuritySchemes, v3.NewSecurityScheme)
 
-	case strings.HasPrefix(ref.Definition, "#/components/examples/"):
-		return copyComponentAndRenameRef(ctx, ref, prefix, dst.Examples, base.NewExample)
+	case strings.HasPrefix(src.Definition, "#/components/examples/"):
+		return copyComponentAndRenameRef(ctx, src, prefix, dst.Examples, base.NewExample)
 
-	case strings.HasPrefix(ref.Definition, "#/components/links/"):
-		return copyComponentAndRenameRef(ctx, ref, prefix, dst.Links, v3.NewLink)
+	case strings.HasPrefix(src.Definition, "#/components/links/"):
+		return copyComponentAndRenameRef(ctx, src, prefix, dst.Links, v3.NewLink)
 
-	case strings.HasPrefix(ref.Definition, "#/components/callbacks/"):
-		return copyComponentAndRenameRef(ctx, ref, prefix, dst.Callbacks, v3.NewCallback)
+	case strings.HasPrefix(src.Definition, "#/components/callbacks/"):
+		return copyComponentAndRenameRef(ctx, src, prefix, dst.Callbacks, v3.NewCallback)
 	}
 
 	return nil
 }
 
-func copySchemaAndRenameRef(ctx context.Context,
-	ref *index.Reference,
+func copySchemaAndRenameRef(
+	ctx context.Context,
+	src *index.Reference,
 	prefix string,
 	dst *orderedmap.Map[string, *base.SchemaProxy],
 ) (err error) {
-	if err = copySchema(ctx, ref, prefix, dst); err != nil {
+	if err = copySchema(ctx, src, prefix, dst); err != nil {
 		return
 	}
 
-	name := prefix + ref.Name
-	refname := strings.TrimSuffix(ref.Definition, ref.Name) + name
-	ref.Node.Content = base.CreateSchemaProxyRef(refname).GetReferenceNode().Content
+	name := prefix + src.Name
+	refname := strings.TrimSuffix(src.Definition, src.Name) + name
+	src.Node.Content = base.CreateSchemaProxyRef(refname).GetReferenceNode().Content
 	return
 }
 
-func copySchema(ctx context.Context,
-	ref *index.Reference,
+func copySchema(
+	ctx context.Context,
+	src *index.Reference,
 	prefix string,
 	dst *orderedmap.Map[string, *base.SchemaProxy],
 ) (err error) {
-	schemaProxy, err := baselow.ExtractSchema(ctx, ref.Node, ref.Index)
+	schemaProxy, err := baselow.ExtractSchema(ctx, src.Node, src.Index)
 	if err != nil {
 		return fmt.Errorf("fail to recreate schema: %w", err)
 	}
 
-	name := prefix + ref.Name
+	name := prefix + src.Name
 	dst.Set(name, base.NewSchemaProxy(schemaProxy))
 	return
 }
 
 func copyComponentAndRenameRef[B any, L low.Buildable[B], H high.GoesLow[L]](
 	ctx context.Context,
-	ref *index.Reference,
+	src *index.Reference,
 	prefix string,
 	dst *orderedmap.Map[string, H],
 	fnew func(L) H,
 ) (err error) {
-	if err = copyComponent(ctx, ref, prefix, dst, fnew); err != nil {
+	if err = copyComponent(ctx, src, prefix, dst, fnew); err != nil {
 		return
 	}
 
-	name := prefix + ref.Name
-	refname := strings.TrimSuffix(ref.Definition, ref.Name) + name
-	ref.Node.Content = base.CreateSchemaProxyRef(refname).GetReferenceNode().Content
+	name := prefix + src.Name
+	refname := strings.TrimSuffix(src.Definition, src.Name) + name
+	src.Node.Content = base.CreateSchemaProxyRef(refname).GetReferenceNode().Content
 	return
 }
 
 func copyComponent[B any, L low.Buildable[B], H high.GoesLow[L]](
 	ctx context.Context,
-	ref *index.Reference,
+	src *index.Reference,
 	prefix string,
 	dst *orderedmap.Map[string, H],
 	fnew func(L) H,
 ) (err error) {
-	v, err := low.ExtractObject[L](ctx, "", ref.Node, ref.Index)
+	v, err := low.ExtractObject[L](ctx, "", src.Node, src.Index)
 	if err != nil {
 		return fmt.Errorf("fail to extract object: %w", err)
 	}
-	err = v.Value.Build(ctx, v.KeyNode, v.ValueNode, ref.Index)
+	err = v.Value.Build(ctx, v.KeyNode, v.ValueNode, src.Index)
 	if err != nil {
 		return fmt.Errorf("fail to build object: %w", err)
 	}
 
-	name := prefix + ref.Name
+	name := prefix + src.Name
 	dst.Set(name, fnew(v.Value))
 	return
 }
