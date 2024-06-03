@@ -18,39 +18,41 @@ import (
 )
 
 func InitComponents(doc *libopenapi.DocumentModel[v3.Document]) {
-	if doc.Model.Components == nil {
-		doc.Model.Components = &v3.Components{}
+	comp := doc.Model.Components
+	if comp == nil {
+		comp = &v3.Components{}
 	}
-	if doc.Model.Components.Schemas == nil {
-		doc.Model.Components.Schemas = &orderedmap.Map[string, *base.SchemaProxy]{}
+	if comp.Schemas == nil {
+		comp.Schemas = orderedmap.New[string, *base.SchemaProxy]()
 	}
-	if doc.Model.Components.Parameters == nil {
-		doc.Model.Components.Parameters = &orderedmap.Map[string, *v3.Parameter]{}
+	if comp.Parameters == nil {
+		comp.Parameters = orderedmap.New[string, *v3.Parameter]()
 	}
-	if doc.Model.Components.RequestBodies == nil {
-		doc.Model.Components.RequestBodies = &orderedmap.Map[string, *v3.RequestBody]{}
+	if comp.RequestBodies == nil {
+		comp.RequestBodies = orderedmap.New[string, *v3.RequestBody]()
 	}
-	if doc.Model.Components.Responses == nil {
-		doc.Model.Components.Responses = &orderedmap.Map[string, *v3.Response]{}
+	if comp.Responses == nil {
+		comp.Responses = orderedmap.New[string, *v3.Response]()
 	}
-	if doc.Model.Components.Headers == nil {
-		doc.Model.Components.Headers = &orderedmap.Map[string, *v3.Header]{}
+	if comp.Headers == nil {
+		comp.Headers = orderedmap.New[string, *v3.Header]()
 	}
-	if doc.Model.Components.Links == nil {
-		doc.Model.Components.Links = &orderedmap.Map[string, *v3.Link]{}
+	if comp.Links == nil {
+		comp.Links = orderedmap.New[string, *v3.Link]()
 	}
-	if doc.Model.Components.SecuritySchemes == nil {
-		doc.Model.Components.SecuritySchemes = &orderedmap.Map[string, *v3.SecurityScheme]{}
+	if comp.SecuritySchemes == nil {
+		comp.SecuritySchemes = orderedmap.New[string, *v3.SecurityScheme]()
 	}
-	if doc.Model.Components.Examples == nil {
-		doc.Model.Components.Examples = &orderedmap.Map[string, *base.Example]{}
+	if comp.Examples == nil {
+		comp.Examples = orderedmap.New[string, *base.Example]()
 	}
-	if doc.Model.Components.Extensions == nil {
-		doc.Model.Components.Extensions = &orderedmap.Map[string, *yaml.Node]{}
+	if comp.Extensions == nil {
+		comp.Extensions = orderedmap.New[string, *yaml.Node]()
 	}
-	if doc.Model.Components.Callbacks == nil {
-		doc.Model.Components.Callbacks = &orderedmap.Map[string, *v3.Callback]{}
+	if comp.Callbacks == nil {
+		comp.Callbacks = orderedmap.New[string, *v3.Callback]()
 	}
+	doc.Model.Components = comp
 }
 
 func GetOperationsMap(p *v3.PathItem) (ops map[string]*v3.Operation) {
@@ -125,10 +127,10 @@ func SetOperation(p *v3.PathItem, method string, val *v3.Operation) {
 	}
 }
 
-func CopyComponentsAndRenameRef(ctx context.Context, src libopenapi.Document, prefix string, dst libopenapi.Document) (nsrc libopenapi.Document, err error) {
+func CopyDocComponentsAndRenameRef(ctx context.Context, src libopenapi.Document, prefix string, dst libopenapi.Document) (nsrc libopenapi.Document, err error) {
 	srcv3, errs := src.BuildV3Model()
 	if err = errors.Join(errs...); err != nil {
-		return nil, fmt.Errorf("fail to build v3 model: %w", err)
+		return nil, fmt.Errorf("fail to build src v3 model: %w", err)
 	}
 
 	// duplicate schema on source doc with added prefix
@@ -137,7 +139,7 @@ func CopyComponentsAndRenameRef(ctx context.Context, src libopenapi.Document, pr
 			continue
 		}
 
-		CopySchema(ctx, ref, prefix, srcv3.Model.Components.Schemas)
+		copySchema(ctx, ref, prefix, srcv3.Model.Components.Schemas)
 	}
 
 	// rerender
@@ -149,46 +151,20 @@ func CopyComponentsAndRenameRef(ctx context.Context, src libopenapi.Document, pr
 	// copy all components
 	dstv3, errs := dst.BuildV3Model()
 	if err = errors.Join(errs...); err != nil {
-		return nil, fmt.Errorf("fail to build v3 model: %w", err)
+		return nil, fmt.Errorf("fail to build dst v3 model: %w", err)
 	}
+
+	InitComponents(dstv3)
 	for _, ref := range srcv3.Index.GetRawReferencesSequenced() {
-		switch {
-		case strings.HasPrefix(ref.Definition, "#/components/schemas/"):
-			CopySchemaAndRenameRef(ctx, ref, prefix, dstv3.Model.Components.Schemas)
-
-		case strings.HasPrefix(ref.Definition, "#/components/parameters/"):
-			CopyComponentAndRenameRef(ctx, ref, prefix, dstv3.Model.Components.Parameters, v3.NewParameter)
-
-		case strings.HasPrefix(ref.Definition, "#/components/requestBodies/"):
-			CopyComponentAndRenameRef(ctx, ref, prefix, dstv3.Model.Components.RequestBodies, v3.NewRequestBody)
-
-		case strings.HasPrefix(ref.Definition, "#/components/headers/"):
-			CopyComponentAndRenameRef(ctx, ref, prefix, dstv3.Model.Components.Headers, v3.NewHeader)
-
-		case strings.HasPrefix(ref.Definition, "#/components/responses/"):
-			CopyComponentAndRenameRef(ctx, ref, prefix, dstv3.Model.Components.Responses, v3.NewResponse)
-
-		case strings.HasPrefix(ref.Definition, "#/components/securitySchemes/"):
-			CopyComponentAndRenameRef(ctx, ref, prefix, dstv3.Model.Components.SecuritySchemes, v3.NewSecurityScheme)
-
-		case strings.HasPrefix(ref.Definition, "#/components/examples/"):
-			CopyComponentAndRenameRef(ctx, ref, prefix, dstv3.Model.Components.Examples, base.NewExample)
-
-		case strings.HasPrefix(ref.Definition, "#/components/links/"):
-			CopyComponentAndRenameRef(ctx, ref, prefix, dstv3.Model.Components.Links, v3.NewLink)
-
-		case strings.HasPrefix(ref.Definition, "#/components/callbacks/"):
-			CopyComponentAndRenameRef(ctx, ref, prefix, dstv3.Model.Components.Callbacks, v3.NewCallback)
-		}
+		err = CopyComponentAndRenameRef(ctx, ref, prefix, dstv3)
 	}
-
-	return src, nil
+	return src, err
 }
 
-func CopySchema(ctx context.Context,
+func copySchema(ctx context.Context,
 	ref *index.Reference,
 	prefix string,
-	m *orderedmap.Map[string, *base.SchemaProxy],
+	dst *orderedmap.Map[string, *base.SchemaProxy],
 ) (err error) {
 	schemaProxy, err := baselow.ExtractSchema(ctx, ref.Node, ref.Index)
 	if err != nil {
@@ -196,33 +172,67 @@ func CopySchema(ctx context.Context,
 	}
 
 	name := prefix + ref.Name
-	m.Set(name, base.NewSchemaProxy(schemaProxy))
+	dst.Set(name, base.NewSchemaProxy(schemaProxy))
 	return
 }
 
-func CopySchemaAndRenameRef(ctx context.Context,
+func CopyComponentAndRenameRef(ctx context.Context,
 	ref *index.Reference,
 	prefix string,
-	m *orderedmap.Map[string, *base.SchemaProxy],
+	dstv3 *libopenapi.DocumentModel[v3.Document],
 ) (err error) {
-	schemaProxy, err := baselow.ExtractSchema(ctx, ref.Node, ref.Index)
-	if err != nil {
-		return fmt.Errorf("fail to recreate schema: %w", err)
+	switch {
+	case strings.HasPrefix(ref.Definition, "#/components/schemas/"):
+		return copySchemaAndRenameRef(ctx, ref, prefix, dstv3.Model.Components.Schemas)
+
+	case strings.HasPrefix(ref.Definition, "#/components/parameters/"):
+		return copyComponentAndRenameRef(ctx, ref, prefix, dstv3.Model.Components.Parameters, v3.NewParameter)
+
+	case strings.HasPrefix(ref.Definition, "#/components/requestBodies/"):
+		return copyComponentAndRenameRef(ctx, ref, prefix, dstv3.Model.Components.RequestBodies, v3.NewRequestBody)
+
+	case strings.HasPrefix(ref.Definition, "#/components/headers/"):
+		return copyComponentAndRenameRef(ctx, ref, prefix, dstv3.Model.Components.Headers, v3.NewHeader)
+
+	case strings.HasPrefix(ref.Definition, "#/components/responses/"):
+		return copyComponentAndRenameRef(ctx, ref, prefix, dstv3.Model.Components.Responses, v3.NewResponse)
+
+	case strings.HasPrefix(ref.Definition, "#/components/securitySchemes/"):
+		return copyComponentAndRenameRef(ctx, ref, prefix, dstv3.Model.Components.SecuritySchemes, v3.NewSecurityScheme)
+
+	case strings.HasPrefix(ref.Definition, "#/components/examples/"):
+		return copyComponentAndRenameRef(ctx, ref, prefix, dstv3.Model.Components.Examples, base.NewExample)
+
+	case strings.HasPrefix(ref.Definition, "#/components/links/"):
+		return copyComponentAndRenameRef(ctx, ref, prefix, dstv3.Model.Components.Links, v3.NewLink)
+
+	case strings.HasPrefix(ref.Definition, "#/components/callbacks/"):
+		return copyComponentAndRenameRef(ctx, ref, prefix, dstv3.Model.Components.Callbacks, v3.NewCallback)
+	}
+
+	return nil
+}
+
+func copySchemaAndRenameRef(ctx context.Context,
+	ref *index.Reference,
+	prefix string,
+	dst *orderedmap.Map[string, *base.SchemaProxy],
+) (err error) {
+	if err = copySchema(ctx, ref, prefix, dst); err != nil {
+		return
 	}
 
 	name := prefix + ref.Name
-	m.Set(name, base.NewSchemaProxy(schemaProxy))
-
 	refname := strings.TrimSuffix(ref.Definition, ref.Name) + name
 	ref.Node.Content = base.CreateSchemaProxyRef(refname).GetReferenceNode().Content
 	return
 }
 
-func CopyComponentAndRenameRef[B any, L low.Buildable[B], H high.GoesLow[L]](
+func copyComponentAndRenameRef[B any, L low.Buildable[B], H high.GoesLow[L]](
 	ctx context.Context,
 	ref *index.Reference,
 	prefix string,
-	m *orderedmap.Map[string, H],
+	dst *orderedmap.Map[string, H],
 	fnew func(L) H,
 ) (err error) {
 	v, err := low.ExtractObject[L](ctx, "", ref.Node, ref.Index)
@@ -235,7 +245,7 @@ func CopyComponentAndRenameRef[B any, L low.Buildable[B], H high.GoesLow[L]](
 	}
 
 	name := prefix + ref.Name
-	m.Set(name, fnew(v.Value))
+	dst.Set(name, fnew(v.Value))
 
 	refname := strings.TrimSuffix(ref.Definition, ref.Name) + name
 	ref.Node.Content = base.CreateSchemaProxyRef(refname).GetReferenceNode().Content

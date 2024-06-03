@@ -57,7 +57,6 @@ func (pe *ProxyExtension) loadDoc() (err error) {
 	}
 
 	pe.doc, pe.docv3 = doc, docv3
-	util.InitComponents(pe.docv3)
 	return
 }
 
