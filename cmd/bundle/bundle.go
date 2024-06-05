@@ -50,6 +50,45 @@ func bundleFile(p string) (bytes []byte, err error) {
 	return
 }
 
+func bundle(doc libopenapi.Document, inline bool) (b []byte, err error) {
+	docv3, errs := doc.BuildV3Model()
+	if len(errs) > 0 {
+		return nil, fmt.Errorf("fail to re-build openapi spec: %w", errors.Join(errs...))
+	}
+
+	// create dummy components and localize all references
+	components := newDummyComponents()
+	rolodex := docv3.Model.Rolodex
+	indexes := rolodex.GetIndexes()
+	for _, idx := range indexes {
+		if err = components.copyComponentsAndLocalize(idx, false, inline); err != nil {
+			return nil, fmt.Errorf("fail to compact: %w", err)
+		}
+	}
+	if err = components.copyComponentsAndLocalize(rolodex.GetRootIndex(), true, inline); err != nil {
+		return nil, fmt.Errorf("fail to compact: %w", err)
+	}
+
+	// copy marshalled components into root node of all index to avoid lookup error
+	y, err := components.toYamlNode()
+	if err != nil {
+		return nil, fmt.Errorf("fail to convert components into `*node.Yaml`: %w", err)
+	}
+	for _, idx := range append(indexes, rolodex.GetRootIndex()) {
+		idx.GetRootNode().Content = y.Content
+	}
+
+	// copy all components
+	util.InitComponents(docv3)
+	for _, idx := range indexes {
+		for _, ref := range idx.GetRawReferencesSequenced() {
+			util.CopyComponent(context.Background(), ref, "", docv3.Model.Components)
+		}
+	}
+
+	return docv3.Model.Render()
+}
+
 type dummyComponents struct {
 	Schemas         *orderedmap.Map[string, *yaml.Node] `json:"schemas,omitempty" yaml:"schemas,omitempty"`
 	Responses       *orderedmap.Map[string, *yaml.Node] `json:"responses,omitempty" yaml:"responses,omitempty"`
@@ -78,6 +117,53 @@ func newDummyComponents() dummyComponents {
 	}
 }
 
+func (c dummyComponents) copyComponentsAndLocalize(idx *index.SpecIndex, root bool, inline bool) (err error) {
+	for _, ref := range idx.GetRawReferencesSequenced() {
+		if !shouldCopy(ref, idx, root, inline) {
+			continue
+		}
+
+		err := c.copyNode(ref)
+		if err != nil {
+			return fmt.Errorf("fail to locate component: %w", err)
+		}
+
+		ref.Node.Content = base.CreateSchemaProxyRef(ref.Definition).GetReferenceNode().Content
+	}
+	return
+}
+
+func shouldCopy(sequenced *index.Reference, idx *index.SpecIndex, root bool, inline bool) bool {
+	mappedReferences := idx.GetMappedReferences()
+
+	// if we're in the root document, don't bundle anything.
+	refExp := strings.Split(sequenced.FullDefinition, "#/")
+	if len(refExp) == 2 {
+		if refExp[0] == sequenced.Index.GetSpecAbsolutePath() || refExp[0] == "" {
+			if root && !inline {
+				idx.GetLogger().Debug("[bundler] skipping local root reference",
+					"ref", sequenced.Definition)
+				return false
+			}
+		}
+	}
+
+	mappedReference := mappedReferences[sequenced.FullDefinition]
+	if mappedReference == nil {
+		return false
+	}
+
+	if mappedReference.Circular {
+		if idx.GetLogger() != nil {
+			idx.GetLogger().Warn("[bundler] skipping circular reference",
+				"ref", sequenced.FullDefinition)
+		}
+		return false
+	}
+
+	return true
+}
+
 func (c dummyComponents) copyNode(src *index.Reference) (err error) {
 	node, _, err := low.LocateRefNode(src.Node, src.Index)
 	if err != nil {
@@ -98,8 +184,6 @@ func (c dummyComponents) copyNode(src *index.Reference) (err error) {
 		c.Headers.Set(src.Name, node)
 
 	case strings.HasPrefix(src.Definition, "#/components/responses/"):
-		b, _ := yaml.Marshal(node)
-		fmt.Println(src.Definition, string(b))
 		c.Responses.Set(src.Name, node)
 
 	case strings.HasPrefix(src.Definition, "#/components/securitySchemes/"):
@@ -122,94 +206,10 @@ func (c dummyComponents) toYamlNode() (n *yaml.Node, err error) {
 	b, err := yaml.Marshal(map[string]interface{}{
 		"components": c,
 	})
-
 	if err != nil {
 		return nil, err
 	}
+
 	y := yaml.Node{}
 	return &y, yaml.Unmarshal(b, &y)
-}
-
-func bundle(doc libopenapi.Document, inline bool) (b []byte, err error) {
-	docv3, errs := doc.BuildV3Model()
-	if len(errs) > 0 {
-		return nil, fmt.Errorf("fail to re-build openapi spec: %w", errors.Join(errs...))
-	}
-	util.InitComponents(docv3)
-	components := newDummyComponents()
-
-	shouldSkip := func(sequenced *index.Reference, idx *index.SpecIndex, root bool) bool {
-		mappedReferences := idx.GetMappedReferences()
-
-		// if we're in the root document, don't bundle anything.
-		refExp := strings.Split(sequenced.FullDefinition, "#/")
-		if len(refExp) == 2 {
-			if refExp[0] == sequenced.Index.GetSpecAbsolutePath() || refExp[0] == "" {
-				if root && !inline {
-					idx.GetLogger().Debug("[bundler] skipping local root reference",
-						"ref", sequenced.Definition)
-					return true
-				}
-			}
-		}
-
-		mappedReference := mappedReferences[sequenced.FullDefinition]
-		if mappedReference == nil {
-			return true
-		}
-
-		if mappedReference.Circular {
-			if idx.GetLogger() != nil {
-				idx.GetLogger().Warn("[bundler] skipping circular reference",
-					"ref", sequenced.FullDefinition)
-			}
-			return true
-		}
-
-		return false
-	}
-
-	localize := func(idx *index.SpecIndex, root bool) (err error) {
-		for _, ref := range idx.GetRawReferencesSequenced() {
-			if shouldSkip(ref, idx, root) {
-				continue
-			}
-
-			err := components.copyNode(ref)
-			if err != nil {
-				return fmt.Errorf("fail to locate component: %w", err)
-			}
-
-			ref.Node.Content = base.CreateSchemaProxyRef(ref.Definition).GetReferenceNode().Content
-		}
-		return
-	}
-
-	rolodex := docv3.Model.Rolodex
-	indexes := rolodex.GetIndexes()
-	for _, idx := range indexes {
-		if err = localize(idx, false); err != nil {
-			return nil, fmt.Errorf("fail to compact: %w", err)
-		}
-	}
-	if err = localize(rolodex.GetRootIndex(), true); err != nil {
-		return nil, fmt.Errorf("fail to compact: %w", err)
-	}
-
-	// copy components into root node of all index
-	y, err := components.toYamlNode()
-	if err != nil {
-		return nil, fmt.Errorf("fail to convert components into `*node.Yaml`: %w", err)
-	}
-	for _, idx := range append(indexes, rolodex.GetRootIndex()) {
-		idx.GetRootNode().Content = y.Content
-	}
-
-	for _, idx := range indexes {
-		for _, ref := range idx.GetRawReferencesSequenced() {
-			util.CopyComponent(context.Background(), ref, "", docv3.Model.Components)
-		}
-	}
-
-	return docv3.Model.Render()
 }

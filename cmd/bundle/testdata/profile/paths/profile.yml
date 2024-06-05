@@ -14,7 +14,7 @@ get:
     "200":
       $ref: "../components/profile.yml#/components/responses/Profile"
     "404":
-      $ref: "../components/profile.yml#/components/responses/ProfileNotFound"
+      $ref: "../components/base.yml#/components/responses/Error"
     "500":
       description: "Error"
       content:
