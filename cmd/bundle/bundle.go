@@ -20,12 +20,12 @@ import (
 )
 
 func bundleFile(p string) (bytes []byte, err error) {
-	f, _ := filepath.Abs(p)
-	d, _ := filepath.Abs(filepath.Dir(p))
-	by, _ := os.ReadFile(f)
-
+	by, err := os.ReadFile(p)
+	if err != nil {
+		return nil, fmt.Errorf("fail to read file :%w", err)
+	}
 	doc, err := libopenapi.NewDocumentWithConfiguration([]byte(by), &datamodel.DocumentConfiguration{
-		BasePath:                d,
+		BasePath:                filepath.Dir(p),
 		ExtractRefsSequentially: true,
 		Logger: slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{
 			Level: slog.LevelWarn,
@@ -39,14 +39,7 @@ func bundleFile(p string) (bytes []byte, err error) {
 	if err != nil {
 		return nil, fmt.Errorf("fail to bundle: %w", err)
 	}
-	// docv3, errs := doc.BuildV3Model()
-	// if len(errs) > 0 {
-	// 	return nil, fmt.Errorf("fail to re-build openapi spec: %w", errors.Join(errs...))
-	// }
-	// bytes, err = bundler.BundleDocument(&docv3.Model)
-	// if err != nil {
-	// 	return nil, fmt.Errorf("fail to bundle: %w", err)
-	// }
+
 	return
 }
 
