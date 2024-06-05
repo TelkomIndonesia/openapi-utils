@@ -15,3 +15,6 @@ paths:
     $ref: paths/profiles.yml
   /tenants/{tenant-id}/profiles/{profile-id}:
     $ref: paths/profile.yml
+
+components:
+  x-test: {}

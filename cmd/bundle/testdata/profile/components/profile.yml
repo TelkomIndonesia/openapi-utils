@@ -26,6 +26,9 @@ components:
           schema:
             $ref: "#/components/schemas/Profile"
 
+    ProfileNotFound:
+      $ref: "base.yml#/components/responses/Error"
+
   headers:
     TraceID:
       schema:

@@ -14,6 +14,7 @@ import (
 	baselow "github.com/pb33f/libopenapi/datamodel/low/base"
 	"github.com/pb33f/libopenapi/index"
 	"github.com/pb33f/libopenapi/orderedmap"
+	"github.com/pb33f/libopenapi/utils"
 	"gopkg.in/yaml.v3"
 )
 
@@ -166,7 +167,21 @@ func copyComponent[B any, L low.Buildable[B], H high.GoesLow[L]](
 	dst *orderedmap.Map[string, H],
 	fnew func(L) H,
 ) (err error) {
-	v, err := low.ExtractObject[L](ctx, "", src.Node, src.Index)
+	node, index := src.Node, src.Index
+	// loop till we find non-reference node
+	// this will result in partial inline
+	for {
+		n, i, err, _ := low.LocateRefNodeWithContext(ctx, node, index)
+		if err != nil {
+			return err
+		}
+		if ok, _, _ := utils.IsNodeRefValue(n); !ok {
+			break
+		}
+		node, index = n, i
+	}
+
+	v, err := low.ExtractObject[L](ctx, "", node, index)
 	if err != nil {
 		return fmt.Errorf("fail to extract object: %w", err)
 	}
