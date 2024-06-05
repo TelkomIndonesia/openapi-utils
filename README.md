@@ -30,7 +30,7 @@ Next iteration will also include the ability to generate go code that utilize `h
 
 This utilities are still in a very early development stage. Current limitations includes but not restricted to:
 
-- When [bundling](#bundle), the `schema` on non-main files needs to be under `components.schemas` key
+- When [bundling](#bundle), all components on non-root files are required to be defined under `components` key [approriately](https://swagger.io/specification/#components-object).
 - When [bundling](#bundle), it will produce incorrect resullt when a [Component](https://swagger.io/specification/#components-object) (excluding [Schema Object](https://swagger.io/specification/#schema-object)) reference other Component with the same type, e.g.:
 
     ```yaml
