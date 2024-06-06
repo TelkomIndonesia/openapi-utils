@@ -6,6 +6,7 @@ import (
 
 	"github.com/pb33f/libopenapi/datamodel/high/base"
 	"github.com/pb33f/libopenapi/datamodel/low"
+	v3 "github.com/pb33f/libopenapi/datamodel/low/v3"
 	"github.com/pb33f/libopenapi/index"
 	"github.com/pb33f/libopenapi/orderedmap"
 	"gopkg.in/yaml.v3"
@@ -51,7 +52,7 @@ func (c StubComponents) CopyToRootNode(idx *index.SpecIndex, prefix string) (err
 		return fmt.Errorf("fail to compact: %w", err)
 	}
 
-	y, err := c.toYamlNode()
+	y, err := c.ToYamlNode()
 	if err != nil {
 		return fmt.Errorf("fail to convert components into `*node.Yaml`: %w", err)
 	}
@@ -136,9 +137,9 @@ func (c StubComponents) copyNode(src *index.Reference, prefix string) (err error
 	return nil
 }
 
-func (c StubComponents) toYamlNode() (n *yaml.Node, err error) {
+func (c StubComponents) ToYamlNode() (n *yaml.Node, err error) {
 	b, err := yaml.Marshal(map[string]interface{}{
-		"components": c,
+		v3.ComponentsLabel: c,
 	})
 	if err != nil {
 		return nil, err

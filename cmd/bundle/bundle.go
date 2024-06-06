@@ -10,7 +10,10 @@ import (
 
 	"github.com/pb33f/libopenapi"
 	"github.com/pb33f/libopenapi/datamodel"
+	v3 "github.com/pb33f/libopenapi/datamodel/low/v3"
+	"github.com/pb33f/libopenapi/utils"
 	"github.com/telkomindonesia/openapi-utils/internal/util"
+	"gopkg.in/yaml.v3"
 )
 
 func bundleFile(p string) (bytes []byte, err error) {
@@ -61,5 +64,20 @@ func bundle(doc libopenapi.Document) (b []byte, err error) {
 		}
 	}
 
-	return docv3.Model.Render()
+	node, err := docv3.Model.MarshalYAML()
+	if err != nil {
+		return nil, fmt.Errorf("fail to marshal modified doc to yaml :%w", err)
+	}
+	_, v := utils.FindKeyNode(v3.ComponentsLabel, node.(*yaml.Node).Content)
+	if v == nil {
+		return docv3.Model.Render()
+	}
+
+	n, err := components.ToYamlNode()
+	if err != nil {
+		return nil, fmt.Errorf("fail to encode stub-components to yaml: %w", err)
+	}
+	v.Content = n.Content[0].Content[1].Content
+	return yaml.Marshal(node)
+
 }
