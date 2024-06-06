@@ -9,42 +9,42 @@ import (
 	"github.com/labstack/echo/v4"
 )
 
-type GenReqIn struct {
-	Path   GenReqInPath
-	Query  GenReqInQuery
-	Header GenReqInHeader
+type Gen0ReqIn struct {
+	Path   Gen0ReqInPath
+	Query  Gen0ReqInQuery
+	Header Gen0ReqInHeader
 }
 
-type GenReqInPath struct {
+type Gen0ReqInPath struct {
 	Gen0Name string
 }
-type GenReqInQuery struct {
+type Gen0ReqInQuery struct {
 	Gen0Name string
 }
-type GenReqInHeader struct {
+type Gen0ReqInHeader struct {
 	Gen0Name string
 }
 
-type GenReqOut struct {
-	Path   GenReqOutPath
-	Query  GenReqOutQuery
-	Header GenReqOutHeader
+type Gen0ReqOut struct {
+	Path   Gen0ReqOutPath
+	Query  Gen0ReqOutQuery
+	Header Gen0ReqOutHeader
 }
-type GenReqOutPath struct {
+type Gen0ReqOutPath struct {
 	Gen0Name string
 	Gen1Name string
 }
-type GenReqOutQuery struct {
+type Gen0ReqOutQuery struct {
 	Gen0Name string
 	Gen1Name string
 }
-type GenReqOutHeader struct {
+type Gen0ReqOutHeader struct {
 	Gen0Name string
 	Gen1Name string
 }
 
 type ProxyInterface interface {
-	GenOp(c echo.Context, in GenReqIn) (out GenReqOut, err error)
+	Gen0Op(c echo.Context, in Gen0ReqIn) (out Gen0ReqOut, err error)
 }
 
 type ProxyInterfaceWrapper struct {
@@ -54,14 +54,14 @@ type ProxyInterfaceWrapper struct {
 }
 
 func (pw ProxyInterfaceWrapper) NameReq(c echo.Context) error {
-	in := GenReqIn{}
-	out, err := pw.pi.GenOp(c, in)
+	in := Gen0ReqIn{}
+	out, err := pw.pi.Gen0Op(c, in)
 	if err != nil {
 		return err
 	}
 
 	u := &url.URL{}
-	u.Path = "/genpart1/" + out.Path.Gen0Name + "/genpart1/" + out.Path.Gen0Name + "/genpartN"
+	u.Path = "/gen0part0/" + out.Path.Gen0Name + "/gen0part1/" + out.Path.Gen1Name + "/gen0partN"
 	u.Query().Set("gen0name", out.Query.Gen0Name)
 	u.Query().Set("gen1name", out.Query.Gen1Name)
 	h := http.Header{}
@@ -76,19 +76,19 @@ func (pw ProxyInterfaceWrapper) NameReq(c echo.Context) error {
 	return nil
 }
 
-func Register(e *echo.Echo, pi ProxyInterface) (err error) {
-	genUrl1, err := url.Parse("https://api/")
-	if err != nil {
-		return err
-	}
+type ProxyURLInterface interface {
+	Gen0ProxyUrl() *url.URL
+}
+
+func Register(e *echo.Echo, pi ProxyInterface, purl ProxyURLInterface) (err error) {
 
 	pw := ProxyInterfaceWrapper{
 		pi: pi,
 
-		gen0ProxyName: httputil.NewSingleHostReverseProxy(genUrl1),
+		gen0ProxyName: httputil.NewSingleHostReverseProxy(purl.Gen0ProxyUrl()),
 	}
 
-	e.Any("genpath", pw.NameReq)
+	e.Any("gen0path", pw.NameReq)
 
 	return
 }
@@ -98,14 +98,23 @@ var _ ProxyInterface = proxyimplementation{}
 
 type proxyimplementation struct{}
 
-// GenOp implements ProxyInterface.
-func (p proxyimplementation) GenOp(c echo.Context, in GenReqIn) (out GenReqOut, err error) {
+// Gen0Op implements ProxyInterface.
+func (p proxyimplementation) Gen0Op(c echo.Context, in Gen0ReqIn) (out Gen0ReqOut, err error) {
+	panic("unimplemented")
+}
+
+var _ ProxyURLInterface = proxyURLimplementation{}
+
+type proxyURLimplementation struct{}
+
+// Gen0ProxyUrl implements ProxyURLInterface.
+func (p proxyURLimplementation) Gen0ProxyUrl() *url.URL {
 	panic("unimplemented")
 }
 
 func main() {
 	e := echo.New()
-	err := Register(e, proxyimplementation{})
+	err := Register(e, proxyimplementation{}, proxyURLimplementation{})
 	if err != nil {
 		log.Fatalln(err)
 	}
