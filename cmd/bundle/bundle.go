@@ -44,8 +44,7 @@ func bundle(doc libopenapi.Document) (b []byte, err error) {
 	}
 
 	// create stub components and localize all references
-	components := util.NewStubComponents()
-	err = components.CopyToRootNode(docv3, "")
+	components, err := util.NewStubComponents(docv3, "")
 	if err != nil {
 		return nil, fmt.Errorf("fail to copy stub components: %w", err)
 	}
