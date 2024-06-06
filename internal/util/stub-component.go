@@ -4,10 +4,14 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/pb33f/libopenapi"
 	"github.com/pb33f/libopenapi/datamodel/high/base"
+	v3 "github.com/pb33f/libopenapi/datamodel/high/v3"
 	"github.com/pb33f/libopenapi/datamodel/low"
+	v3low "github.com/pb33f/libopenapi/datamodel/low/v3"
 	"github.com/pb33f/libopenapi/index"
 	"github.com/pb33f/libopenapi/orderedmap"
+	"github.com/pb33f/libopenapi/utils"
 	"gopkg.in/yaml.v3"
 )
 
@@ -39,8 +43,8 @@ func NewStubComponents() StubComponents {
 	}
 }
 
-func (c StubComponents) CopyToRootNode(idx *index.SpecIndex, prefix string) (err error) {
-	rolodex := idx.GetRolodex()
+func (c StubComponents) CopyToRootNode(docv3 *libopenapi.DocumentModel[v3.Document], prefix string) (err error) {
+	rolodex := docv3.Index.GetRolodex()
 	indexes := rolodex.GetIndexes()
 	for _, idx := range indexes {
 		if err = c.copyNodesAndRenameRefs(idx, prefix); err != nil {
@@ -51,7 +55,7 @@ func (c StubComponents) CopyToRootNode(idx *index.SpecIndex, prefix string) (err
 		return fmt.Errorf("fail to compact: %w", err)
 	}
 
-	y, err := c.toYamlNode()
+	y, err := c.ToYamlNode()
 	if err != nil {
 		return fmt.Errorf("fail to convert components into `*node.Yaml`: %w", err)
 	}
@@ -136,9 +140,27 @@ func (c StubComponents) copyNode(src *index.Reference, prefix string) (err error
 	return nil
 }
 
-func (c StubComponents) toYamlNode() (n *yaml.Node, err error) {
+func (c StubComponents) RenderToDoc(docv3 *libopenapi.DocumentModel[v3.Document]) ([]byte, error) {
+	node, err := docv3.Model.MarshalYAML()
+	if err != nil {
+		return nil, fmt.Errorf("fail to marshal modified doc to yaml :%w", err)
+	}
+	_, v := utils.FindKeyNode(v3low.ComponentsLabel, node.(*yaml.Node).Content)
+	if v == nil {
+		return docv3.Model.Render()
+	}
+
+	n, err := c.ToYamlNode()
+	if err != nil {
+		return nil, fmt.Errorf("fail to encode stub-components to yaml: %w", err)
+	}
+	v.Content = n.Content[0].Content[1].Content
+	return yaml.Marshal(node)
+}
+
+func (c StubComponents) ToYamlNode() (n *yaml.Node, err error) {
 	b, err := yaml.Marshal(map[string]interface{}{
-		"components": c,
+		v3low.ComponentsLabel: c,
 	})
 	if err != nil {
 		return nil, err
