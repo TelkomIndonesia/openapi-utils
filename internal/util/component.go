@@ -41,6 +41,7 @@ func CopyComponentsAndRenameRefs(ctx context.Context, src libopenapi.Document, p
 	for _, ref := range srcv3.Index.GetRawReferencesSequenced() {
 		err = CopyComponentAndRenameRef(ctx, ref, prefix, dstv3.Model.Components)
 	}
+
 	return src, err
 }
 
