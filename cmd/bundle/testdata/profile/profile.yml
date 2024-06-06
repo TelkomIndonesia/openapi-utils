@@ -5,13 +5,16 @@ info:
   license:
     name: "Internal"
     url: "http://localhost"
-security: []
 servers:
   - url: "https://profile:8443"
   - url: "https://localhost:8443"
+security:
+  - {}
 paths:
   /tenants/{tenant-id}/profiles:
-    $ref: paths/create_profile.yml
-
+    $ref: paths/profiles.yml
   /tenants/{tenant-id}/profiles/{profile-id}:
-    $ref: paths/get_profile_id.yml
+    $ref: paths/profile.yml
+
+components:
+  x-test: {}

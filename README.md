@@ -2,14 +2,11 @@
 
 Several utilities for working with openapi document.
 
-Note that this is still in very early development stage. Current limitations includes but not restricted to:
+## Features
 
-- Can only bundle reference to `schema`.
-- When [bundling](#bundle), the `schema` on non-main files needs to be under `components.schemas` key
+### Bundle
 
-## Bundle
-
-Bundle splitted Open API files into one file while trying to persist all their `$ref` use.
+Bundle splitted Open API files into one file while trying to persist all their use of `$ref`.
 
 ```bash
 go run -mod=mod github.com/telkomindonesia/openapi-utils/cmd/bundle <path-to-main-spec> [<path-to-new-spec>]
@@ -17,7 +14,7 @@ go run -mod=mod github.com/telkomindonesia/openapi-utils/cmd/bundle <path-to-mai
 
 For testing the functionality, you can use [spec inside testdata directory](./cmd/bundle/testdata/profile/).
 
-## Proxy
+### Proxy
 
 Create a new spec by picking operations from other specs. The main purpose was to derive an OpenAPI spec for an [api-gateways or backend-for-frontends](https://microservices.io/patterns/apigateway.html) using OpenAPI spec of services behind it. It introduces a new `x-proxy` extension.
 
@@ -28,3 +25,47 @@ go run -mod=mod github.com/telkomindonesia/openapi-utils/cmd/bundle <path-to-pro
 For testing the functionality, you can use [specs inside testdata directory](./cmd/proxy/internal/proxy/testdata/spec-proxy.yml).
 
 Next iteration will also include the ability to generate go code that utilize `httputil.ReverseProxy`, inspired by [oapi-codegen](https://github.com/deepmap/oapi-codegen).
+
+## Limitations
+
+This utilities are still in a very early development stage. Current limitations includes but not restricted to:
+
+- When [bundling](#bundle), all components on non-root files are required to be defined under `components` key [accordingly](https://swagger.io/specification/#components-object).
+- It will inline a [Component](https://swagger.io/specification/#components-object) (excluding [Schema Object](https://swagger.io/specification/#schema-object)) that reference other Component with the same type.
+
+    For example if we have the following responses:
+
+    ```yaml
+    components:
+        responses:
+            ProfileAlias:
+                $ref: "#/components/responses/Profile"
+            Profile:
+                description: "success"
+                content:
+                    "application/json":
+                        schema:
+                            ID: 
+                                type: string
+    ```
+
+    then it will become:
+
+    ```yaml
+    components:
+        responses:
+            ProfileAlias:
+                description: "success"
+                content:
+                    "application/json":
+                        schema:
+                            ID: 
+                                type: string
+            Profile:
+                description: "success"
+                content:
+                    "application/json":
+                        schema:
+                            ID: 
+                                type: string
+    ```
