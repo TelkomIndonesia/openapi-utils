@@ -95,8 +95,8 @@ func CopyComponentAndRenameRef(
 	}
 
 	name := prefix + src.Name
-	refname := strings.TrimSuffix(src.Definition, src.Name) + name
-	src.Node.Content = base.CreateSchemaProxyRef(refname).GetReferenceNode().Content
+	refdef := strings.TrimSuffix(src.Definition, src.Name) + name
+	src.Node.Content = base.CreateSchemaProxyRef(refdef).GetReferenceNode().Content
 	return nil
 }
 
