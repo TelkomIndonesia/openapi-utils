@@ -2,15 +2,19 @@ package proxy
 
 import (
 	"context"
+	"errors"
 	"testing"
 
+	"github.com/pb33f/libopenapi"
 	"github.com/stretchr/testify/require"
 )
 
 func TestCompile(t *testing.T) {
 	src := "./testdata/spec-proxy.yml"
-
-	by, _, err := CompileByte(context.Background(), src)
+	bytes, _, err := CompileByte(context.Background(), src)
 	require.NoError(t, err)
-	t.Log("new\n", string(by))
+	doc, err := libopenapi.NewDocument(bytes)
+	require.NoError(t, err)
+	_, errs := doc.BuildV3Model()
+	require.NoError(t, errors.Join(errs...))
 }
