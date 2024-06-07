@@ -1,6 +1,7 @@
 package util
 
 import (
+	"errors"
 	"fmt"
 	"strings"
 
@@ -26,9 +27,11 @@ type StubComponents struct {
 	Links           *orderedmap.Map[string, *yaml.Node] `json:"links,omitempty" yaml:"links,omitempty"`
 	Callbacks       *orderedmap.Map[string, *yaml.Node] `json:"callbacks,omitempty" yaml:"callbacks,omitempty"`
 	Extensions      *orderedmap.Map[string, *yaml.Node] `json:"-" yaml:"-"`
+
+	doc libopenapi.Document
 }
 
-func NewStubComponents(docv3 *libopenapi.DocumentModel[v3.Document], prefix string) (c StubComponents, err error) {
+func NewStubComponents(doc libopenapi.Document) (c StubComponents) {
 	c = StubComponents{
 		Schemas:         orderedmap.New[string, *yaml.Node](),
 		Responses:       orderedmap.New[string, *yaml.Node](),
@@ -40,18 +43,19 @@ func NewStubComponents(docv3 *libopenapi.DocumentModel[v3.Document], prefix stri
 		Links:           orderedmap.New[string, *yaml.Node](),
 		Callbacks:       orderedmap.New[string, *yaml.Node](),
 		Extensions:      orderedmap.New[string, *yaml.Node](),
+
+		doc: doc,
 	}
 
-	err = c.copyNodesAndRenameRefs(docv3, prefix)
-	if err != nil {
-		return
-	}
-
-	err = c.copyToRootNode(docv3)
 	return
 }
 
-func (c StubComponents) copyNodesAndRenameRefs(docv3 *libopenapi.DocumentModel[v3.Document], prefix string) (err error) {
+func (c StubComponents) CopyNodesAndRenameRefs(prefix string) (err error) {
+	docv3, errs := c.doc.BuildV3Model()
+	if err := errors.Join(errs...); err != nil {
+		return err
+	}
+
 	rolodex := docv3.Index.GetRolodex()
 	indexes := append(rolodex.GetIndexes(), rolodex.GetRootIndex())
 	for _, idx := range indexes {
@@ -75,6 +79,7 @@ func (c StubComponents) copyNodesAndRenameRefs(docv3 *libopenapi.DocumentModel[v
 		}
 	}
 
+	err = c.copyToRootNode(docv3)
 	return
 }
 
@@ -129,7 +134,7 @@ func (c StubComponents) copyNode(src *index.Reference, prefix string) (err error
 }
 
 func (c StubComponents) copyToRootNode(docv3 *libopenapi.DocumentModel[v3.Document]) (err error) {
-	y, err := c.toYamlNode()
+	y, err := c.ToYamlNode()
 	if err != nil {
 		return fmt.Errorf("fail to convert components into `*node.Yaml`: %w", err)
 	}
@@ -142,8 +147,13 @@ func (c StubComponents) copyToRootNode(docv3 *libopenapi.DocumentModel[v3.Docume
 	return
 }
 
-func (c StubComponents) RenderToDoc(docv3 *libopenapi.DocumentModel[v3.Document]) ([]byte, error) {
-	comp, err := c.toYamlNode()
+func (c StubComponents) Render() ([]byte, error) {
+	docv3, errs := c.doc.BuildV3Model()
+	if err := errors.Join(errs...); err != nil {
+		return nil, err
+	}
+
+	comp, err := c.ToYamlNode()
 	if err != nil {
 		return nil, fmt.Errorf("fail to encode stub-components to yaml: %w", err)
 	}
@@ -164,7 +174,7 @@ func (c StubComponents) RenderToDoc(docv3 *libopenapi.DocumentModel[v3.Document]
 	return yaml.Marshal(root)
 }
 
-func (c StubComponents) toYamlNode() (n *yaml.Node, err error) {
+func (c StubComponents) ToYamlNode() (n *yaml.Node, err error) {
 	b, err := yaml.Marshal(map[string]interface{}{
 		v3low.ComponentsLabel: c,
 	})
