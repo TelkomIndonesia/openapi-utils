@@ -1,6 +1,7 @@
 package util
 
 import (
+	"errors"
 	"fmt"
 	"strings"
 
@@ -26,10 +27,12 @@ type StubComponents struct {
 	Links           *orderedmap.Map[string, *yaml.Node] `json:"links,omitempty" yaml:"links,omitempty"`
 	Callbacks       *orderedmap.Map[string, *yaml.Node] `json:"callbacks,omitempty" yaml:"callbacks,omitempty"`
 	Extensions      *orderedmap.Map[string, *yaml.Node] `json:"-" yaml:"-"`
+
+	docv3 *libopenapi.DocumentModel[v3.Document]
 }
 
-func NewStubComponents() StubComponents {
-	return StubComponents{
+func NewStubComponents(doc libopenapi.Document) (c StubComponents, err error) {
+	c = StubComponents{
 		Schemas:         orderedmap.New[string, *yaml.Node](),
 		Responses:       orderedmap.New[string, *yaml.Node](),
 		Parameters:      orderedmap.New[string, *yaml.Node](),
@@ -41,64 +44,53 @@ func NewStubComponents() StubComponents {
 		Callbacks:       orderedmap.New[string, *yaml.Node](),
 		Extensions:      orderedmap.New[string, *yaml.Node](),
 	}
+
+	docv3, errs := doc.BuildV3Model()
+	if err := errors.Join(errs...); err != nil {
+		return c, err
+	}
+
+	c.docv3 = docv3
+	return
 }
 
-func (c StubComponents) CopyToRootNode(docv3 *libopenapi.DocumentModel[v3.Document], prefix string) (err error) {
-	rolodex := docv3.Index.GetRolodex()
-	indexes := rolodex.GetIndexes()
+func (c StubComponents) CopyNodesAndRenameRefs(prefix string) (err error) {
+	rolodex := c.docv3.Index.GetRolodex()
+	indexes := append(rolodex.GetIndexes(), rolodex.GetRootIndex())
 	for _, idx := range indexes {
-		if err = c.copyNodesAndRenameRefs(idx, prefix); err != nil {
-			return fmt.Errorf("fail to compact: %w", err)
+		for _, ref := range idx.GetRawReferencesSequenced() {
+			if isCircular(ref) {
+				if idx.GetLogger() != nil {
+					idx.GetLogger().Warn("skipping circular reference",
+						"ref", ref.FullDefinition)
+				}
+				continue
+			}
+
+			err := c.copyNode(ref, prefix)
+			if err != nil {
+				return fmt.Errorf("fail to locate component: %w", err)
+			}
+
+			name := prefix + ref.Name
+			refdef := strings.TrimSuffix(ref.Definition, ref.Name) + name
+			ref.Node.Content = base.CreateSchemaProxyRef(refdef).GetReferenceNode().Content
 		}
 	}
-	if err = c.copyNodesAndRenameRefs(rolodex.GetRootIndex(), prefix); err != nil {
-		return fmt.Errorf("fail to compact: %w", err)
-	}
 
-	y, err := c.ToYamlNode()
-	if err != nil {
-		return fmt.Errorf("fail to convert components into `*node.Yaml`: %w", err)
-	}
-	for _, idx := range append(indexes, rolodex.GetRootIndex()) {
-		idx.GetRootNode().Content = y.Content
-	}
+	err = c.copyToRootNode()
 	return
 }
 
-func (c StubComponents) copyNodesAndRenameRefs(idx *index.SpecIndex, prefix string) (err error) {
-	for _, ref := range idx.GetRawReferencesSequenced() {
-		if !shouldCopy(ref, idx) {
-			continue
-		}
-
-		err := c.copyNode(ref, prefix)
-		if err != nil {
-			return fmt.Errorf("fail to locate component: %w", err)
-		}
-
-		name := prefix + ref.Name
-		refdef := strings.TrimSuffix(ref.Definition, ref.Name) + name
-		ref.Node.Content = base.CreateSchemaProxyRef(refdef).GetReferenceNode().Content
-	}
-	return
-}
-
-func shouldCopy(sequenced *index.Reference, idx *index.SpecIndex) bool {
+func isCircular(sequenced *index.Reference) bool {
+	idx := sequenced.Index
 	mappedReferences := idx.GetMappedReferences()
 	mappedReference := mappedReferences[sequenced.FullDefinition]
 	if mappedReference == nil {
-		return false
+		return true
 	}
 
-	if mappedReference.Circular {
-		if idx.GetLogger() != nil {
-			idx.GetLogger().Warn("[bundler] skipping circular reference",
-				"ref", sequenced.FullDefinition)
-		}
-		return false
-	}
-
-	return true
+	return mappedReference.Circular
 }
 
 func (c StubComponents) copyNode(src *index.Reference, prefix string) (err error) {
@@ -140,22 +132,40 @@ func (c StubComponents) copyNode(src *index.Reference, prefix string) (err error
 	return nil
 }
 
-func (c StubComponents) RenderToDoc(docv3 *libopenapi.DocumentModel[v3.Document]) ([]byte, error) {
-	node, err := docv3.Model.MarshalYAML()
+func (c StubComponents) copyToRootNode() (err error) {
+	y, err := c.ToYamlNode()
 	if err != nil {
-		return nil, fmt.Errorf("fail to marshal modified doc to yaml :%w", err)
-	}
-	_, v := utils.FindKeyNode(v3low.ComponentsLabel, node.(*yaml.Node).Content)
-	if v == nil {
-		return docv3.Model.Render()
+		return fmt.Errorf("fail to convert components into `*node.Yaml`: %w", err)
 	}
 
-	n, err := c.ToYamlNode()
+	rolodex := c.docv3.Index.GetRolodex()
+	indexes := append(rolodex.GetIndexes(), rolodex.GetRootIndex())
+	for _, idx := range append(indexes, rolodex.GetRootIndex()) {
+		idx.GetRootNode().Content = y.Content
+	}
+	return
+}
+
+func (c StubComponents) Render() ([]byte, error) {
+	comp, err := c.ToYamlNode()
 	if err != nil {
 		return nil, fmt.Errorf("fail to encode stub-components to yaml: %w", err)
 	}
-	v.Content = n.Content[0].Content[1].Content
-	return yaml.Marshal(node)
+
+	y, err := c.docv3.Model.MarshalYAML()
+	if err != nil {
+		return nil, fmt.Errorf("fail to marshal modified doc to yaml :%w", err)
+	}
+	root := y.(*yaml.Node)
+
+	_, rootComp := utils.FindKeyNode(v3low.ComponentsLabel, root.Content)
+	if rootComp == nil {
+		root.Content = append(root.Content, comp.Content...)
+	} else {
+		rootComp.Content = comp.Content[0].Content[1].Content
+	}
+
+	return yaml.Marshal(root)
 }
 
 func (c StubComponents) ToYamlNode() (n *yaml.Node, err error) {

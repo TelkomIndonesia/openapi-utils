@@ -41,6 +41,7 @@ func CopyComponentsAndRenameRefs(ctx context.Context, src libopenapi.Document, p
 	for _, ref := range srcv3.Index.GetRawReferencesSequenced() {
 		err = CopyComponentAndRenameRef(ctx, ref, prefix, dstv3.Model.Components)
 	}
+
 	return src, err
 }
 
@@ -94,8 +95,8 @@ func CopyComponentAndRenameRef(
 	}
 
 	name := prefix + src.Name
-	refname := strings.TrimSuffix(src.Definition, src.Name) + name
-	src.Node.Content = base.CreateSchemaProxyRef(refname).GetReferenceNode().Content
+	refdef := strings.TrimSuffix(src.Definition, src.Name) + name
+	src.Node.Content = base.CreateSchemaProxyRef(refdef).GetReferenceNode().Content
 	return nil
 }
 
