@@ -44,16 +44,15 @@ func bundle(doc libopenapi.Document) (b []byte, err error) {
 	}
 
 	// create stub components and localize all references
-	components, err := util.NewStubComponents(doc)
-	if err != nil {
-		return nil, fmt.Errorf("fail to instantiate stub components: %w", err)
-	}
-	err = components.CopyNodesAndLocalizeRefs("")
+	components := util.NewStubComponents()
+	err = components.CopyNodesAndLocalizeRefs(docv3, "")
 	if err != nil {
 		return nil, fmt.Errorf("fail to copy stub components: %w", err)
 	}
 
 	// copy all high-level components
+	// this might be unnecessary since we will replace them with stub-component
+	// but just to be sure that the render won't fail
 	util.InitComponents(docv3)
 	for _, idx := range docv3.Index.GetRolodex().GetIndexes() {
 		for _, ref := range idx.GetRawReferencesSequenced() {
@@ -64,5 +63,5 @@ func bundle(doc libopenapi.Document) (b []byte, err error) {
 		}
 	}
 
-	return components.Render()
+	return components.Render(docv3)
 }

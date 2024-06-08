@@ -1,7 +1,6 @@
 package util
 
 import (
-	"errors"
 	"fmt"
 	"strings"
 
@@ -26,11 +25,9 @@ type StubComponents struct {
 	Links           *orderedmap.Map[string, *yaml.Node] `json:"links,omitempty" yaml:"links,omitempty"`
 	Callbacks       *orderedmap.Map[string, *yaml.Node] `json:"callbacks,omitempty" yaml:"callbacks,omitempty"`
 	Extensions      *orderedmap.Map[string, *yaml.Node] `json:"-" yaml:"-"`
-
-	docv3 *libopenapi.DocumentModel[v3.Document]
 }
 
-func NewStubComponents(doc libopenapi.Document) (c StubComponents, err error) {
+func NewStubComponents() (c StubComponents) {
 	c = StubComponents{
 		Schemas:         orderedmap.New[string, *yaml.Node](),
 		Responses:       orderedmap.New[string, *yaml.Node](),
@@ -43,18 +40,11 @@ func NewStubComponents(doc libopenapi.Document) (c StubComponents, err error) {
 		Callbacks:       orderedmap.New[string, *yaml.Node](),
 		Extensions:      orderedmap.New[string, *yaml.Node](),
 	}
-
-	docv3, errs := doc.BuildV3Model()
-	if err := errors.Join(errs...); err != nil {
-		return c, err
-	}
-
-	c.docv3 = docv3
 	return
 }
 
-func (c StubComponents) CopyNodesAndLocalizeRefs(prefix string) (err error) {
-	rolodex := c.docv3.Index.GetRolodex()
+func (c StubComponents) CopyNodesAndLocalizeRefs(docv3 *libopenapi.DocumentModel[v3.Document], prefix string) (err error) {
+	rolodex := docv3.Index.GetRolodex()
 	indexes := append(rolodex.GetIndexes(), rolodex.GetRootIndex())
 	for _, idx := range indexes {
 		for _, ref := range idx.GetRawReferencesSequenced() {
@@ -75,7 +65,7 @@ func (c StubComponents) CopyNodesAndLocalizeRefs(prefix string) (err error) {
 		}
 	}
 
-	err = c.copyToRootNode()
+	err = c.copyToRootNode(docv3)
 	return
 }
 
@@ -129,13 +119,13 @@ func (c StubComponents) copyNode(src *index.Reference, prefix string) (err error
 	return nil
 }
 
-func (c StubComponents) copyToRootNode() (err error) {
+func (c StubComponents) copyToRootNode(docv3 *libopenapi.DocumentModel[v3.Document]) (err error) {
 	y, err := c.ToYamlNode()
 	if err != nil {
 		return fmt.Errorf("fail to convert components into `*node.Yaml`: %w", err)
 	}
 
-	rolodex := c.docv3.Index.GetRolodex()
+	rolodex := docv3.Index.GetRolodex()
 	indexes := append(rolodex.GetIndexes(), rolodex.GetRootIndex())
 	for _, idx := range append(indexes, rolodex.GetRootIndex()) {
 		idx.GetRootNode().Content = y.Content
@@ -143,13 +133,13 @@ func (c StubComponents) copyToRootNode() (err error) {
 	return
 }
 
-func (c StubComponents) Render() ([]byte, error) {
+func (c StubComponents) Render(docv3 *libopenapi.DocumentModel[v3.Document]) ([]byte, error) {
 	comp, err := c.ToYamlNode()
 	if err != nil {
 		return nil, fmt.Errorf("fail to encode stub-components to yaml: %w", err)
 	}
 
-	y, err := c.docv3.Model.MarshalYAML()
+	y, err := docv3.Model.MarshalYAML()
 	if err != nil {
 		return nil, fmt.Errorf("fail to marshal modified doc to yaml :%w", err)
 	}
