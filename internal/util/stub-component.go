@@ -43,7 +43,7 @@ func NewStubComponents() (c StubComponents) {
 	return
 }
 
-func (c StubComponents) CopyNodesAndLocalizeRefs(docv3 *libopenapi.DocumentModel[v3.Document], prefix string) (err error) {
+func (c StubComponents) CopyLocalizedComponents(docv3 *libopenapi.DocumentModel[v3.Document], prefix string) (err error) {
 	rolodex := docv3.Index.GetRolodex()
 	indexes := append(rolodex.GetIndexes(), rolodex.GetRootIndex())
 	for _, idx := range indexes {
