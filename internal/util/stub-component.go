@@ -6,7 +6,6 @@ import (
 	"strings"
 
 	"github.com/pb33f/libopenapi"
-	"github.com/pb33f/libopenapi/datamodel/high/base"
 	v3 "github.com/pb33f/libopenapi/datamodel/high/v3"
 	"github.com/pb33f/libopenapi/datamodel/low"
 	v3low "github.com/pb33f/libopenapi/datamodel/low/v3"
@@ -54,7 +53,7 @@ func NewStubComponents(doc libopenapi.Document) (c StubComponents, err error) {
 	return
 }
 
-func (c StubComponents) CopyNodesAndRenameRefs(prefix string) (err error) {
+func (c StubComponents) CopyNodesAndLocalizeRefs(prefix string) (err error) {
 	rolodex := c.docv3.Index.GetRolodex()
 	indexes := append(rolodex.GetIndexes(), rolodex.GetRootIndex())
 	for _, idx := range indexes {
@@ -72,9 +71,7 @@ func (c StubComponents) CopyNodesAndRenameRefs(prefix string) (err error) {
 				return fmt.Errorf("fail to locate component: %w", err)
 			}
 
-			name := prefix + ref.Name
-			refdef := strings.TrimSuffix(ref.Definition, ref.Name) + name
-			ref.Node.Content = base.CreateSchemaProxyRef(refdef).GetReferenceNode().Content
+			LocalizeReference(ref, prefix)
 		}
 	}
 

@@ -48,7 +48,7 @@ func bundle(doc libopenapi.Document) (b []byte, err error) {
 	if err != nil {
 		return nil, fmt.Errorf("fail to instantiate stub components: %w", err)
 	}
-	err = components.CopyNodesAndRenameRefs("")
+	err = components.CopyNodesAndLocalizeRefs("")
 	if err != nil {
 		return nil, fmt.Errorf("fail to copy stub components: %w", err)
 	}
