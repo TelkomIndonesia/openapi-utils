@@ -44,8 +44,7 @@ func NewStubComponents() (c StubComponents) {
 }
 
 func (c StubComponents) CopyLocalizedComponents(docv3 *libopenapi.DocumentModel[v3.Document], prefix string) (err error) {
-	rolodex := docv3.Index.GetRolodex()
-	indexes := append(rolodex.GetIndexes(), rolodex.GetRootIndex())
+	indexes := append(docv3.Index.GetRolodex().GetIndexes(), docv3.Index)
 	for _, idx := range indexes {
 		for _, ref := range idx.GetRawReferencesSequenced() {
 			if isCircular(ref) {
