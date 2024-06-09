@@ -81,10 +81,15 @@ func CompileByte(ctx context.Context, specPath string) (newspec []byte, doc libo
 		opParam := util.CopyParameters(op.Parameters, params...)
 		opID := op.OperationId
 		opSecurity := op.Security
+		opExt := op.Extensions
 		*op = *uop
 		op.Parameters = opParam
 		op.OperationId = opID
 		op.Security = opSecurity
+		for m := range orderedmap.Iterate(context.Background(), op.Extensions) {
+			opExt.Set(m.Key(), m.Value())
+		}
+		op.Extensions = opExt
 	}
 
 	err = components.CopyLocalizedComponents(pe.docv3, "")

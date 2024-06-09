@@ -206,8 +206,21 @@ func (c StubComponents) Render(docv3 *libopenapi.DocumentModel[v3.Document]) ([]
 }
 
 func (c StubComponents) ToYamlNode() (n *yaml.Node, err error) {
+	m := orderedmap.New[string, any]()
+	m.Set("schemas", c.Schemas)
+	m.Set("responses", c.Responses)
+	m.Set("parameters", c.Parameters)
+	m.Set("examples", c.Examples)
+	m.Set("requestBodies", c.RequestBodies)
+	m.Set("headers", c.Headers)
+	m.Set("securitySchemes", c.SecuritySchemes)
+	m.Set("links", c.Links)
+	m.Set("callbacks", c.Callbacks)
+	for item := range orderedmap.Iterate(context.Background(), c.Extensions) {
+		m.Set(item.Key(), item.Value())
+	}
 	b, err := yaml.Marshal(map[string]interface{}{
-		v3low.ComponentsLabel: c,
+		v3low.ComponentsLabel: m,
 	})
 	if err != nil {
 		return nil, err
