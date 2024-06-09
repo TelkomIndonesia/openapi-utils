@@ -47,7 +47,7 @@ func (c StubComponents) CopyLocalizedComponents(docv3 *libopenapi.DocumentModel[
 	indexes := append(docv3.Index.GetRolodex().GetIndexes(), docv3.Index)
 	for _, idx := range indexes {
 		for _, ref := range idx.GetRawReferencesSequenced() {
-			if isCircular(ref) {
+			if low.IsCircular(ref.Node, ref.Index) {
 				if idx.GetLogger() != nil {
 					idx.GetLogger().Warn("skipping circular reference",
 						"ref", ref.FullDefinition)
@@ -66,17 +66,6 @@ func (c StubComponents) CopyLocalizedComponents(docv3 *libopenapi.DocumentModel[
 
 	err = c.copyToRootNode(docv3)
 	return
-}
-
-func isCircular(sequenced *index.Reference) bool {
-	idx := sequenced.Index
-	mappedReferences := idx.GetMappedReferences()
-	mappedReference := mappedReferences[sequenced.FullDefinition]
-	if mappedReference == nil {
-		return true
-	}
-
-	return mappedReference.Circular
 }
 
 func (c StubComponents) copyNode(src *index.Reference, prefix string) (err error) {
