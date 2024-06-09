@@ -1,6 +1,8 @@
 package util
 
 import (
+	"context"
+	"errors"
 	"fmt"
 	"strings"
 
@@ -64,12 +66,16 @@ func (c StubComponents) CopyLocalizedComponents(docv3 *libopenapi.DocumentModel[
 		}
 	}
 
+	for m := range orderedmap.Iterate(context.Background(), docv3.Model.Components.Extensions) {
+		c.Extensions.Set(m.Key(), m.Value())
+	}
+
 	err = c.copyToRootNode(docv3)
 	return
 }
 
 func (c StubComponents) copyNode(src *index.Reference, prefix string) (err error) {
-	node, _, err := low.LocateRefNode(src.Node, src.Index)
+	node, err := locateNode(src)
 	if err != nil {
 		return fmt.Errorf("fail to locate component: %w", err)
 	}
@@ -107,6 +113,40 @@ func (c StubComponents) copyNode(src *index.Reference, prefix string) (err error
 	return nil
 }
 
+func locateNode(ref *index.Reference) (node *yaml.Node, err error) {
+	idx := ref.Index
+	if r := getFromMap(idx.GetAllComponentSchemas(), ref.Definition); r != nil {
+		return r.Node, nil
+	}
+	if r := getFromMap(idx.GetAllParameters(), ref.Definition); r != nil {
+		return r.Node, nil
+	}
+	if r := getFromMap(idx.GetAllRequestBodies(), ref.Definition); r != nil {
+		return r.Node, nil
+	}
+	if r := getFromMap(idx.GetAllResponses(), ref.Definition); r != nil {
+		return r.Node, nil
+	}
+	if r := getFromMap(idx.GetAllSecuritySchemes(), ref.Definition); r != nil {
+		return r.Node, nil
+	}
+	if r := getFromMap(idx.GetAllExamples(), ref.Definition); r != nil {
+		return r.Node, nil
+	}
+	if r := getFromMap(idx.GetAllLinks(), ref.Definition); r != nil {
+		return r.Node, nil
+	}
+	if r := getFromMap(idx.GetAllCallbacks(), ref.Definition); r != nil {
+		return r.Node, nil
+	}
+
+	node, _, err = low.LocateRefNode(ref.Node, ref.Index)
+	if err != nil {
+		return nil, fmt.Errorf("fail to locate component: %w", err)
+	}
+	return
+}
+
 func (c StubComponents) copyToRootNode(docv3 *libopenapi.DocumentModel[v3.Document]) (err error) {
 	y, err := c.ToYamlNode()
 	if err != nil {
@@ -118,6 +158,28 @@ func (c StubComponents) copyToRootNode(docv3 *libopenapi.DocumentModel[v3.Docume
 	for _, idx := range append(indexes, rolodex.GetRootIndex()) {
 		idx.GetRootNode().Content = y.Content
 	}
+	return
+}
+
+func (c StubComponents) RenderAndReload(doc libopenapi.Document) (b []byte, ndoc libopenapi.Document, docv3 *libopenapi.DocumentModel[v3.Document], err error) {
+	docv3, errs := doc.BuildV3Model()
+	if err := errors.Join(errs...); err != nil {
+		return nil, nil, nil, fmt.Errorf("fail to build v3 model: %w", err)
+	}
+	b, err = c.Render(docv3)
+	if err != nil {
+		return nil, nil, nil, fmt.Errorf("fail to render doc: %w", err)
+	}
+
+	ndoc, err = libopenapi.NewDocumentWithConfiguration(b, doc.GetConfiguration())
+	if err != nil {
+		return nil, nil, nil, fmt.Errorf("fail to parse new doc: %w", err)
+	}
+	docv3, errs = ndoc.BuildV3Model()
+	if err := errors.Join(errs...); err != nil {
+		return nil, nil, nil, fmt.Errorf("fail to build v3 model from new doc: %w", err)
+	}
+
 	return
 }
 
