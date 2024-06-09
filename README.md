@@ -31,7 +31,7 @@ Next iteration will also include the ability to generate go code that utilize `h
 This utilities are still in a very early development stage. Current limitations includes but not restricted to:
 
 - When [bundling](#bundle), all components on non-root files are required to be defined under `components` key [accordingly](https://swagger.io/specification/#components-object).
-- When creating document for [proxy](#proxy), it will inline a [Component](https://swagger.io/specification/#components-object) (excluding [Schema Object](https://swagger.io/specification/#schema-object)) that reference other Component with the same type.
+- It might inline a [Component](https://swagger.io/specification/#components-object) (excluding [Schema Object](https://swagger.io/specification/#schema-object)) that reference other Component with the same type.
 
     For example if we have the following responses:
 
@@ -49,7 +49,7 @@ This utilities are still in a very early development stage. Current limitations 
                                 type: string
     ```
 
-    then it will become:
+    then it might become:
 
     ```yaml
     components:
