@@ -80,7 +80,7 @@ func (c StubComponents) copyComponents(docv3 *libopenapi.DocumentModel[v3.Docume
 		c.Extensions.Set(m.Key(), m.Value())
 	}
 
-	err = c.copyToRootNode(docv3)
+	err = c.replaceRootNodes(docv3)
 	return
 }
 
@@ -157,7 +157,7 @@ func locateNode(ref *index.Reference) (node *yaml.Node, err error) {
 	return
 }
 
-func (c StubComponents) copyToRootNode(docv3 *libopenapi.DocumentModel[v3.Document]) (err error) {
+func (c StubComponents) replaceRootNodes(docv3 *libopenapi.DocumentModel[v3.Document]) (err error) {
 	y, err := c.ToYamlNode()
 	if err != nil {
 		return fmt.Errorf("fail to convert components into `*node.Yaml`: %w", err)
