@@ -54,7 +54,7 @@ func CompileByte(ctx context.Context, specPath string) (newspec []byte, doc libo
 			return nil, nil, fmt.Errorf("fail to render and reload upstream doc: %w", err)
 		}
 
-		// copy components with new prefix
+		// copy components with new prefix and localized it
 		err = components.CopyLocalizedComponents(docv3, prefix)
 		if err != nil {
 			return nil, nil, fmt.Errorf("fail to copy and rename localized components: %w", err)
@@ -99,7 +99,7 @@ func CompileByte(ctx context.Context, specPath string) (newspec []byte, doc libo
 		op.Extensions = opExt
 	}
 
-	err = components.CopyLocalizedComponents(pe.docv3, "")
+	err = components.CopyComponents(pe.docv3, "")
 	if err != nil {
 		return nil, nil, fmt.Errorf("fail to copy components on proxy doc: %w", err)
 	}
