@@ -43,11 +43,11 @@ func CompileByte(ctx context.Context, specPath string) (newspec []byte, doc libo
 		allcomponents := util.NewStubComponents()
 		err := allcomponents.CopyComponents(docv3, "")
 		if err != nil {
-			return nil, nil, fmt.Errorf("fail to copy and localized all components: %w", err)
+			return nil, nil, fmt.Errorf("fail to copy components: %w", err)
 		}
 		err = allcomponents.CopyComponents(docv3, prefix)
 		if err != nil {
-			return nil, nil, fmt.Errorf("fail to copy and localized all components: %w", err)
+			return nil, nil, fmt.Errorf("fail to copy components with prefix: %w", err)
 		}
 		_, doc, docv3, err = allcomponents.RenderAndReload(doc)
 		if err != nil {
