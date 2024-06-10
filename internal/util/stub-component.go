@@ -1,12 +1,12 @@
 package util
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"strings"
 
 	"github.com/pb33f/libopenapi"
-	"github.com/pb33f/libopenapi/datamodel/high/base"
 	v3 "github.com/pb33f/libopenapi/datamodel/high/v3"
 	"github.com/pb33f/libopenapi/datamodel/low"
 	v3low "github.com/pb33f/libopenapi/datamodel/low/v3"
@@ -27,11 +27,9 @@ type StubComponents struct {
 	Links           *orderedmap.Map[string, *yaml.Node] `json:"links,omitempty" yaml:"links,omitempty"`
 	Callbacks       *orderedmap.Map[string, *yaml.Node] `json:"callbacks,omitempty" yaml:"callbacks,omitempty"`
 	Extensions      *orderedmap.Map[string, *yaml.Node] `json:"-" yaml:"-"`
-
-	docv3 *libopenapi.DocumentModel[v3.Document]
 }
 
-func NewStubComponents(doc libopenapi.Document) (c StubComponents, err error) {
+func NewStubComponents() (c StubComponents) {
 	c = StubComponents{
 		Schemas:         orderedmap.New[string, *yaml.Node](),
 		Responses:       orderedmap.New[string, *yaml.Node](),
@@ -44,22 +42,14 @@ func NewStubComponents(doc libopenapi.Document) (c StubComponents, err error) {
 		Callbacks:       orderedmap.New[string, *yaml.Node](),
 		Extensions:      orderedmap.New[string, *yaml.Node](),
 	}
-
-	docv3, errs := doc.BuildV3Model()
-	if err := errors.Join(errs...); err != nil {
-		return c, err
-	}
-
-	c.docv3 = docv3
 	return
 }
 
-func (c StubComponents) CopyNodesAndRenameRefs(prefix string) (err error) {
-	rolodex := c.docv3.Index.GetRolodex()
-	indexes := append(rolodex.GetIndexes(), rolodex.GetRootIndex())
+func (c StubComponents) CopyLocalizedComponents(docv3 *libopenapi.DocumentModel[v3.Document], prefix string) (err error) {
+	indexes := append(docv3.Index.GetRolodex().GetIndexes(), docv3.Index)
 	for _, idx := range indexes {
 		for _, ref := range idx.GetRawReferencesSequenced() {
-			if isCircular(ref) {
+			if low.IsCircular(ref.Node, ref.Index) {
 				if idx.GetLogger() != nil {
 					idx.GetLogger().Warn("skipping circular reference",
 						"ref", ref.FullDefinition)
@@ -72,29 +62,20 @@ func (c StubComponents) CopyNodesAndRenameRefs(prefix string) (err error) {
 				return fmt.Errorf("fail to locate component: %w", err)
 			}
 
-			name := prefix + ref.Name
-			refdef := strings.TrimSuffix(ref.Definition, ref.Name) + name
-			ref.Node.Content = base.CreateSchemaProxyRef(refdef).GetReferenceNode().Content
+			LocalizeReference(ref, prefix)
 		}
 	}
 
-	err = c.copyToRootNode()
+	for m := range orderedmap.Iterate(context.Background(), docv3.Model.Components.Extensions) {
+		c.Extensions.Set(m.Key(), m.Value())
+	}
+
+	err = c.copyToRootNode(docv3)
 	return
 }
 
-func isCircular(sequenced *index.Reference) bool {
-	idx := sequenced.Index
-	mappedReferences := idx.GetMappedReferences()
-	mappedReference := mappedReferences[sequenced.FullDefinition]
-	if mappedReference == nil {
-		return true
-	}
-
-	return mappedReference.Circular
-}
-
 func (c StubComponents) copyNode(src *index.Reference, prefix string) (err error) {
-	node, _, err := low.LocateRefNode(src.Node, src.Index)
+	node, err := locateNode(src)
 	if err != nil {
 		return fmt.Errorf("fail to locate component: %w", err)
 	}
@@ -132,13 +113,47 @@ func (c StubComponents) copyNode(src *index.Reference, prefix string) (err error
 	return nil
 }
 
-func (c StubComponents) copyToRootNode() (err error) {
+func locateNode(ref *index.Reference) (node *yaml.Node, err error) {
+	idx := ref.Index
+	if r := getFromMap(idx.GetAllComponentSchemas(), ref.Definition); r != nil {
+		return r.Node, nil
+	}
+	if r := getFromMap(idx.GetAllParameters(), ref.Definition); r != nil {
+		return r.Node, nil
+	}
+	if r := getFromMap(idx.GetAllRequestBodies(), ref.Definition); r != nil {
+		return r.Node, nil
+	}
+	if r := getFromMap(idx.GetAllResponses(), ref.Definition); r != nil {
+		return r.Node, nil
+	}
+	if r := getFromMap(idx.GetAllSecuritySchemes(), ref.Definition); r != nil {
+		return r.Node, nil
+	}
+	if r := getFromMap(idx.GetAllExamples(), ref.Definition); r != nil {
+		return r.Node, nil
+	}
+	if r := getFromMap(idx.GetAllLinks(), ref.Definition); r != nil {
+		return r.Node, nil
+	}
+	if r := getFromMap(idx.GetAllCallbacks(), ref.Definition); r != nil {
+		return r.Node, nil
+	}
+
+	node, _, err = low.LocateRefNode(ref.Node, ref.Index)
+	if err != nil {
+		return nil, fmt.Errorf("fail to locate component: %w", err)
+	}
+	return
+}
+
+func (c StubComponents) copyToRootNode(docv3 *libopenapi.DocumentModel[v3.Document]) (err error) {
 	y, err := c.ToYamlNode()
 	if err != nil {
 		return fmt.Errorf("fail to convert components into `*node.Yaml`: %w", err)
 	}
 
-	rolodex := c.docv3.Index.GetRolodex()
+	rolodex := docv3.Index.GetRolodex()
 	indexes := append(rolodex.GetIndexes(), rolodex.GetRootIndex())
 	for _, idx := range append(indexes, rolodex.GetRootIndex()) {
 		idx.GetRootNode().Content = y.Content
@@ -146,13 +161,35 @@ func (c StubComponents) copyToRootNode() (err error) {
 	return
 }
 
-func (c StubComponents) Render() ([]byte, error) {
+func (c StubComponents) RenderAndReload(doc libopenapi.Document) (b []byte, ndoc libopenapi.Document, docv3 *libopenapi.DocumentModel[v3.Document], err error) {
+	docv3, errs := doc.BuildV3Model()
+	if err := errors.Join(errs...); err != nil {
+		return nil, nil, nil, fmt.Errorf("fail to build v3 model: %w", err)
+	}
+	b, err = c.Render(docv3)
+	if err != nil {
+		return nil, nil, nil, fmt.Errorf("fail to render doc: %w", err)
+	}
+
+	ndoc, err = libopenapi.NewDocumentWithConfiguration(b, doc.GetConfiguration())
+	if err != nil {
+		return nil, nil, nil, fmt.Errorf("fail to parse new doc: %w", err)
+	}
+	docv3, errs = ndoc.BuildV3Model()
+	if err := errors.Join(errs...); err != nil {
+		return nil, nil, nil, fmt.Errorf("fail to build v3 model from new doc: %w", err)
+	}
+
+	return
+}
+
+func (c StubComponents) Render(docv3 *libopenapi.DocumentModel[v3.Document]) ([]byte, error) {
 	comp, err := c.ToYamlNode()
 	if err != nil {
 		return nil, fmt.Errorf("fail to encode stub-components to yaml: %w", err)
 	}
 
-	y, err := c.docv3.Model.MarshalYAML()
+	y, err := docv3.Model.MarshalYAML()
 	if err != nil {
 		return nil, fmt.Errorf("fail to marshal modified doc to yaml :%w", err)
 	}
@@ -169,8 +206,21 @@ func (c StubComponents) Render() ([]byte, error) {
 }
 
 func (c StubComponents) ToYamlNode() (n *yaml.Node, err error) {
+	m := orderedmap.New[string, any]()
+	m.Set("schemas", c.Schemas)
+	m.Set("responses", c.Responses)
+	m.Set("parameters", c.Parameters)
+	m.Set("examples", c.Examples)
+	m.Set("requestBodies", c.RequestBodies)
+	m.Set("headers", c.Headers)
+	m.Set("securitySchemes", c.SecuritySchemes)
+	m.Set("links", c.Links)
+	m.Set("callbacks", c.Callbacks)
+	for item := range orderedmap.Iterate(context.Background(), c.Extensions) {
+		m.Set(item.Key(), item.Value())
+	}
 	b, err := yaml.Marshal(map[string]interface{}{
-		v3low.ComponentsLabel: c,
+		v3low.ComponentsLabel: m,
 	})
 	if err != nil {
 		return nil, err

@@ -18,7 +18,7 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-func CopyComponentsAndRenameRefs(ctx context.Context, src libopenapi.Document, prefix string, dst libopenapi.Document) (nsrc libopenapi.Document, err error) {
+func CopyLocalizedComponents(ctx context.Context, src libopenapi.Document, prefix string, dst libopenapi.Document) (nsrc libopenapi.Document, err error) {
 	// duplicate components on source doc with added prefix and rerender
 	srcv3, errs := src.BuildV3Model()
 	if err = errors.Join(errs...); err != nil {
@@ -39,7 +39,7 @@ func CopyComponentsAndRenameRefs(ctx context.Context, src libopenapi.Document, p
 	}
 	InitComponents(dstv3)
 	for _, ref := range srcv3.Index.GetRawReferencesSequenced() {
-		err = CopyComponentAndRenameRef(ctx, ref, prefix, dstv3.Model.Components)
+		err = CopyLocalizedComponent(ctx, ref, prefix, dstv3.Model.Components)
 	}
 
 	return src, err
@@ -83,7 +83,7 @@ func InitComponents(doc *libopenapi.DocumentModel[v3.Document]) {
 	doc.Model.Components = comp
 }
 
-func CopyComponentAndRenameRef(
+func CopyLocalizedComponent(
 	ctx context.Context,
 	src *index.Reference,
 	prefix string,
@@ -94,9 +94,7 @@ func CopyComponentAndRenameRef(
 		return
 	}
 
-	name := prefix + src.Name
-	refdef := strings.TrimSuffix(src.Definition, src.Name) + name
-	src.Node.Content = base.CreateSchemaProxyRef(refdef).GetReferenceNode().Content
+	LocalizeReference(src, prefix)
 	return nil
 }
 

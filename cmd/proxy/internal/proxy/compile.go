@@ -2,7 +2,6 @@ package proxy
 
 import (
 	"context"
-	"errors"
 	"fmt"
 
 	"github.com/pb33f/libopenapi"
@@ -17,12 +16,19 @@ func CompileByte(ctx context.Context, specPath string) (newspec []byte, doc libo
 		return nil, nil, err
 	}
 
+	components := util.NewStubComponents()
 	// copy components to proxy doc
 	proxyOperationUpstreamDocs := map[*ProxyOperation]libopenapi.Document{}
 	for doc, uopPopMap := range pe.upstream {
 		docV3, _ := doc.BuildV3Model()
+		prefix := util.MapFirstEntry(util.MapFirstEntry(uopPopMap).Value).Key.GetName()
 
 		// delete unused operation
+		allcomponents := util.NewStubComponents()
+		err := allcomponents.CopyLocalizedComponents(docV3, "")
+		if err != nil {
+			return nil, nil, fmt.Errorf("fail to copy and localized all components: %w", err)
+		}
 		opmap := map[*v3.Operation]struct{}{}
 		for k := range uopPopMap {
 			opmap[k] = struct{}{}
@@ -36,12 +42,15 @@ func CompileByte(ctx context.Context, specPath string) (newspec []byte, doc libo
 				util.SetOperation(pathItem, method, nil)
 			}
 		}
+		_, doc, docV3, err = allcomponents.RenderAndReload(doc)
+		if err != nil {
+			return nil, nil, fmt.Errorf("fail to render and reload upstream doc: %w", err)
+		}
 
 		// copy components with new prefix
-		prefix := util.MapFirstEntry(util.MapFirstEntry(uopPopMap).Value).Key.GetName()
-		doc, err := util.CopyComponentsAndRenameRefs(ctx, doc, prefix, pe.doc)
+		err = components.CopyLocalizedComponents(docV3, prefix)
 		if err != nil {
-			return nil, nil, fmt.Errorf("fail to copy components : %w", err)
+			return nil, nil, fmt.Errorf("fail to copy and rename localized components: %w", err)
 		}
 
 		// store the new upstream doc
@@ -72,12 +81,21 @@ func CompileByte(ctx context.Context, specPath string) (newspec []byte, doc libo
 		opParam := util.CopyParameters(op.Parameters, params...)
 		opID := op.OperationId
 		opSecurity := op.Security
+		opExt := op.Extensions
 		*op = *uop
 		op.Parameters = opParam
 		op.OperationId = opID
 		op.Security = opSecurity
+		for m := range orderedmap.Iterate(context.Background(), op.Extensions) {
+			opExt.Set(m.Key(), m.Value())
+		}
+		op.Extensions = opExt
 	}
-	newspec, doc, _, errs := pe.doc.RenderAndReload()
-	err = errors.Join(errs...)
+
+	err = components.CopyLocalizedComponents(pe.docv3, "")
+	if err != nil {
+		return nil, nil, fmt.Errorf("fail to copy components on proxy doc: %w", err)
+	}
+	newspec, doc, _, err = components.RenderAndReload(pe.doc)
 	return
 }

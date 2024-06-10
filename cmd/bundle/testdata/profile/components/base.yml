@@ -19,4 +19,4 @@ components:
           schema:
             properties:
               id:
-                $ref: "base.yml#/components/schemas/UUID"
+                $ref: "#/components/schemas/UUID"
