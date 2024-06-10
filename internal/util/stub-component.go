@@ -46,6 +46,14 @@ func NewStubComponents() (c StubComponents) {
 }
 
 func (c StubComponents) CopyLocalizedComponents(docv3 *libopenapi.DocumentModel[v3.Document], prefix string) (err error) {
+	return c.copyComponents(docv3, prefix, true)
+}
+
+func (c StubComponents) CopyComponents(docv3 *libopenapi.DocumentModel[v3.Document], prefix string) (err error) {
+	return c.copyComponents(docv3, prefix, false)
+}
+
+func (c StubComponents) copyComponents(docv3 *libopenapi.DocumentModel[v3.Document], prefix string, localized bool) (err error) {
 	indexes := append(docv3.Index.GetRolodex().GetIndexes(), docv3.Index)
 	for _, idx := range indexes {
 		for _, ref := range idx.GetRawReferencesSequenced() {
@@ -57,12 +65,14 @@ func (c StubComponents) CopyLocalizedComponents(docv3 *libopenapi.DocumentModel[
 				continue
 			}
 
-			err := c.copyNode(ref, prefix)
+			err := c.copyComponentNode(ref, prefix)
 			if err != nil {
 				return fmt.Errorf("fail to locate component: %w", err)
 			}
 
-			LocalizeReference(ref, prefix)
+			if localized {
+				LocalizeReference(ref, prefix)
+			}
 		}
 	}
 
@@ -74,7 +84,7 @@ func (c StubComponents) CopyLocalizedComponents(docv3 *libopenapi.DocumentModel[
 	return
 }
 
-func (c StubComponents) copyNode(src *index.Reference, prefix string) (err error) {
+func (c StubComponents) copyComponentNode(src *index.Reference, prefix string) (err error) {
 	node, err := locateNode(src)
 	if err != nil {
 		return fmt.Errorf("fail to locate component: %w", err)
