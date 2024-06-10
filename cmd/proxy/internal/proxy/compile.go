@@ -20,20 +20,15 @@ func CompileByte(ctx context.Context, specPath string) (newspec []byte, doc libo
 	// copy components to proxy doc
 	proxyOperationUpstreamDocs := map[*ProxyOperation]libopenapi.Document{}
 	for doc, uopPopMap := range pe.upstream {
-		docV3, _ := doc.BuildV3Model()
+		docv3, _ := doc.BuildV3Model()
 		prefix := util.MapFirstEntry(util.MapFirstEntry(uopPopMap).Value).Key.GetName()
 
 		// delete unused operation
-		allcomponents := util.NewStubComponents()
-		err := allcomponents.CopyLocalizedComponents(docV3, "")
-		if err != nil {
-			return nil, nil, fmt.Errorf("fail to copy and localized all components: %w", err)
-		}
 		opmap := map[*v3.Operation]struct{}{}
 		for k := range uopPopMap {
 			opmap[k] = struct{}{}
 		}
-		for m := range orderedmap.Iterate(ctx, docV3.Model.Paths.PathItems) {
+		for m := range orderedmap.Iterate(ctx, docv3.Model.Paths.PathItems) {
 			pathItem := m.Value()
 			for method, op := range util.GetOperationsMap(m.Value()) {
 				if _, ok := opmap[op]; ok {
@@ -42,13 +37,25 @@ func CompileByte(ctx context.Context, specPath string) (newspec []byte, doc libo
 				util.SetOperation(pathItem, method, nil)
 			}
 		}
-		_, doc, docV3, err = allcomponents.RenderAndReload(doc)
+
+		// recreate the doc so that we could get references of used operations only
+		// also add components with prefix so that it doesn't trigger error log from libopenapi
+		allcomponents := util.NewStubComponents()
+		err := allcomponents.CopyComponents(docv3, "")
+		if err != nil {
+			return nil, nil, fmt.Errorf("fail to copy and localized all components: %w", err)
+		}
+		err = allcomponents.CopyComponents(docv3, prefix)
+		if err != nil {
+			return nil, nil, fmt.Errorf("fail to copy and localized all components: %w", err)
+		}
+		_, doc, docv3, err = allcomponents.RenderAndReload(doc)
 		if err != nil {
 			return nil, nil, fmt.Errorf("fail to render and reload upstream doc: %w", err)
 		}
 
 		// copy components with new prefix
-		err = components.CopyLocalizedComponents(docV3, prefix)
+		err = components.CopyLocalizedComponents(docv3, prefix)
 		if err != nil {
 			return nil, nil, fmt.Errorf("fail to copy and rename localized components: %w", err)
 		}
