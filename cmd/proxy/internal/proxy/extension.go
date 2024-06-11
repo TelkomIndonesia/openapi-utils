@@ -252,7 +252,6 @@ func (pe *ProxyExtension) CreateProxyDoc() (b []byte, ndoc libopenapi.Document, 
 			return nil, nil, nil, fmt.Errorf("fail to copy localized components: %w", err)
 		}
 	}
-
 	err = components.CopyComponents(pe.docv3, "")
 	if err != nil {
 		return nil, nil, nil, fmt.Errorf("fail to copy components on proxy doc: %w", err)
