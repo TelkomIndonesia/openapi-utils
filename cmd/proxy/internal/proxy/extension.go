@@ -38,7 +38,7 @@ func NewProxyExtension(ctx context.Context, specPath string) (pe ProxyExtension,
 	if err = pe.loadProxied(ctx); err != nil {
 		return
 	}
-	if err = pe.pruneUpstreamDocs(ctx); err != nil {
+	if err = pe.pruneAndPrefixUpstreamDocs(ctx); err != nil {
 		return
 	}
 	pe.updateProxied()
@@ -129,7 +129,7 @@ func (pe *ProxyExtension) loadProxied(ctx context.Context) (err error) {
 	return
 }
 
-func (pe *ProxyExtension) pruneUpstreamDocs(ctx context.Context) (err error) {
+func (pe *ProxyExtension) pruneAndPrefixUpstreamDocs(ctx context.Context) (err error) {
 	pe.upstream = map[*ProxyOperation]libopenapi.Document{}
 	for doc, uopPopMap := range pe.loadedUpstream {
 		docv3, _ := doc.BuildV3Model()
@@ -152,16 +152,27 @@ func (pe *ProxyExtension) pruneUpstreamDocs(ctx context.Context) (err error) {
 
 		// recreate the doc so that we could get references of used operations only
 		// also add components with prefix so that it doesn't trigger error log from libopenapi
-		allcomponents := util.NewStubComponents()
-		err := allcomponents.CopyComponents(docv3, "")
+		components := util.NewStubComponents()
+		err := components.CopyComponents(docv3, "")
 		if err != nil {
 			return fmt.Errorf("fail to copy components: %w", err)
 		}
-		err = allcomponents.CopyComponents(docv3, prefix)
+		err = components.CopyComponents(docv3, prefix)
 		if err != nil {
 			return fmt.Errorf("fail to copy components with prefix: %w", err)
 		}
-		_, doc, docv3, err = allcomponents.RenderAndReload(doc)
+		_, doc, docv3, err = components.RenderAndReload(doc)
+		if err != nil {
+			return fmt.Errorf("fail to render and reload upstream doc: %w", err)
+		}
+
+		// rerender with prefixed added to all components
+		components = util.NewStubComponents()
+		err = components.CopyLocalizedComponents(docv3, prefix)
+		if err != nil {
+			return fmt.Errorf("fail to copy components with prefix: %w", err)
+		}
+		_, doc, docv3, err = components.RenderAndReload(doc)
 		if err != nil {
 			return fmt.Errorf("fail to render and reload upstream doc: %w", err)
 		}
@@ -230,9 +241,9 @@ func (pe *ProxyExtension) CreateProxyDoc() (b []byte, ndoc libopenapi.Document, 
 	}
 
 	components := util.NewStubComponents()
-	for pop, doc := range pe.Upstream() {
+	for _, doc := range pe.Upstream() {
 		docv3, _ := doc.BuildV3Model()
-		err := components.CopyLocalizedComponents(docv3, pop.GetName())
+		err := components.CopyLocalizedComponents(docv3, "")
 		if err != nil {
 			return nil, nil, nil, fmt.Errorf("fail to copy localized components: %w", err)
 		}
