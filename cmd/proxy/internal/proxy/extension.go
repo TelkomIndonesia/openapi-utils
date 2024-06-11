@@ -202,7 +202,7 @@ func (pe *ProxyExtension) Upstream() map[*ProxyOperation]libopenapi.Document {
 	return pe.upstream
 }
 
-func (pe *ProxyExtension) RenderAndReload() (b []byte, ndoc libopenapi.Document, docv3 *libopenapi.DocumentModel[v3.Document], err error) {
+func (pe *ProxyExtension) CreateProxyDoc() (b []byte, ndoc libopenapi.Document, docv3 *libopenapi.DocumentModel[v3.Document], err error) {
 	components := util.NewStubComponents()
 	for pop, doc := range pe.Upstream() {
 		docv3, _ := doc.BuildV3Model()
@@ -210,6 +210,32 @@ func (pe *ProxyExtension) RenderAndReload() (b []byte, ndoc libopenapi.Document,
 		if err != nil {
 			return nil, nil, nil, fmt.Errorf("fail to copy localized components: %w", err)
 		}
+	}
+
+	// compile proxy document
+	for op, pop := range pe.Proxied() {
+		uop, err := pop.GetUpstreamOperation()
+		if err != nil {
+			return nil, nil, nil, err
+		}
+		params, err := pop.GetProxiedParameters()
+		if err != nil {
+			return nil, nil, nil, err
+		}
+
+		// copy operation
+		opParam := util.CopyParameters(op.Parameters, params...)
+		opID := op.OperationId
+		opSecurity := op.Security
+		opExt := op.Extensions
+		*op = *uop
+		op.Parameters = opParam
+		op.OperationId = opID
+		op.Security = opSecurity
+		for m := range orderedmap.Iterate(context.Background(), op.Extensions) {
+			opExt.Set(m.Key(), m.Value())
+		}
+		op.Extensions = opExt
 	}
 
 	err = components.CopyComponents(pe.docv3, "")
