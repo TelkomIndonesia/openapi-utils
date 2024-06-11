@@ -5,7 +5,6 @@ import (
 	"fmt"
 
 	"github.com/pb33f/libopenapi"
-	v3 "github.com/pb33f/libopenapi/datamodel/high/v3"
 	"github.com/pb33f/libopenapi/orderedmap"
 	"github.com/telkomindonesia/openapi-utils/internal/util"
 )
@@ -16,65 +15,17 @@ func CompileByte(ctx context.Context, specPath string) (newspec []byte, doc libo
 		return nil, nil, err
 	}
 
+	// compile proxy document
 	components := util.NewStubComponents()
-	// copy components to proxy doc
-	proxyOperationUpstreamDocs := map[*ProxyOperation]libopenapi.Document{}
-	for doc, uopPopMap := range pe.upstream {
+	for pop, doc := range pe.Upstream() {
 		docv3, _ := doc.BuildV3Model()
-		prefix := util.MapFirstEntry(util.MapFirstEntry(uopPopMap).Value).Key.GetName()
-
-		// delete unused operation
-		opmap := map[*v3.Operation]struct{}{}
-		for k := range uopPopMap {
-			opmap[k] = struct{}{}
-		}
-		for m := range orderedmap.Iterate(ctx, docv3.Model.Paths.PathItems) {
-			pathItem := m.Value()
-			for method, op := range util.GetOperationsMap(m.Value()) {
-				if _, ok := opmap[op]; ok {
-					continue
-				}
-				util.SetOperation(pathItem, method, nil)
-			}
-		}
-
-		// recreate the doc so that we could get references of used operations only
-		// also add components with prefix so that it doesn't trigger error log from libopenapi
-		allcomponents := util.NewStubComponents()
-		err := allcomponents.CopyComponents(docv3, "")
+		err := components.CopyLocalizedComponents(docv3, pop.GetName())
 		if err != nil {
-			return nil, nil, fmt.Errorf("fail to copy components: %w", err)
-		}
-		err = allcomponents.CopyComponents(docv3, prefix)
-		if err != nil {
-			return nil, nil, fmt.Errorf("fail to copy components with prefix: %w", err)
-		}
-		_, doc, docv3, err = allcomponents.RenderAndReload(doc)
-		if err != nil {
-			return nil, nil, fmt.Errorf("fail to render and reload upstream doc: %w", err)
-		}
-
-		// copy components with new prefix and localized it
-		err = components.CopyLocalizedComponents(docv3, prefix)
-		if err != nil {
-			return nil, nil, fmt.Errorf("fail to copy and rename localized components: %w", err)
-		}
-
-		// store the new upstream doc
-		for _, popmap := range uopPopMap {
-			for pop := range popmap {
-				proxyOperationUpstreamDocs[pop] = doc
-			}
+			return nil, nil, fmt.Errorf("fail to copy localized components: %w", err)
 		}
 	}
 
-	// compile proxy document
-	for op, pop := range pe.proxied {
-		doc, ok := proxyOperationUpstreamDocs[pop]
-		if !ok {
-			continue
-		}
-		*pop = pop.WithReloadedDoc(doc)
+	for op, pop := range pe.Proxied() {
 		uop, err := pop.GetUpstreamOperation()
 		if err != nil {
 			return nil, nil, err
