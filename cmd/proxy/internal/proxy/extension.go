@@ -186,10 +186,35 @@ func (pe *ProxyExtension) updateProxied() {
 	}
 }
 
+func (pe *ProxyExtension) Doc() libopenapi.Document {
+	return pe.doc
+}
+
+func (pe *ProxyExtension) DocV3() *libopenapi.DocumentModel[v3.Document] {
+	return pe.docv3
+}
+
 func (pe *ProxyExtension) Proxied() map[*v3.Operation]*ProxyOperation {
 	return pe.proxied
 }
 
 func (pe *ProxyExtension) Upstream() map[*ProxyOperation]libopenapi.Document {
 	return pe.upstream
+}
+
+func (pe *ProxyExtension) RenderAndReload() (b []byte, ndoc libopenapi.Document, docv3 *libopenapi.DocumentModel[v3.Document], err error) {
+	components := util.NewStubComponents()
+	for pop, doc := range pe.Upstream() {
+		docv3, _ := doc.BuildV3Model()
+		err := components.CopyLocalizedComponents(docv3, pop.GetName())
+		if err != nil {
+			return nil, nil, nil, fmt.Errorf("fail to copy localized components: %w", err)
+		}
+	}
+
+	err = components.CopyComponents(pe.docv3, "")
+	if err != nil {
+		return nil, nil, nil, fmt.Errorf("fail to copy components on proxy doc: %w", err)
+	}
+	return components.RenderAndReload(pe.Doc())
 }

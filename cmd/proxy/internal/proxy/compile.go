@@ -2,7 +2,6 @@ package proxy
 
 import (
 	"context"
-	"fmt"
 
 	"github.com/pb33f/libopenapi"
 	"github.com/pb33f/libopenapi/orderedmap"
@@ -16,15 +15,6 @@ func CompileByte(ctx context.Context, specPath string) (newspec []byte, doc libo
 	}
 
 	// compile proxy document
-	components := util.NewStubComponents()
-	for pop, doc := range pe.Upstream() {
-		docv3, _ := doc.BuildV3Model()
-		err := components.CopyLocalizedComponents(docv3, pop.GetName())
-		if err != nil {
-			return nil, nil, fmt.Errorf("fail to copy localized components: %w", err)
-		}
-	}
-
 	for op, pop := range pe.Proxied() {
 		uop, err := pop.GetUpstreamOperation()
 		if err != nil {
@@ -50,10 +40,6 @@ func CompileByte(ctx context.Context, specPath string) (newspec []byte, doc libo
 		op.Extensions = opExt
 	}
 
-	err = components.CopyComponents(pe.docv3, "")
-	if err != nil {
-		return nil, nil, fmt.Errorf("fail to copy components on proxy doc: %w", err)
-	}
-	newspec, doc, _, err = components.RenderAndReload(pe.doc)
+	newspec, doc, _, err = pe.RenderAndReload()
 	return
 }
