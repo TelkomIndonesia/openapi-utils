@@ -203,15 +203,6 @@ func (pe *ProxyExtension) Upstream() map[*ProxyOperation]libopenapi.Document {
 }
 
 func (pe *ProxyExtension) CreateProxyDoc() (b []byte, ndoc libopenapi.Document, docv3 *libopenapi.DocumentModel[v3.Document], err error) {
-	components := util.NewStubComponents()
-	for pop, doc := range pe.Upstream() {
-		docv3, _ := doc.BuildV3Model()
-		err := components.CopyLocalizedComponents(docv3, pop.GetName())
-		if err != nil {
-			return nil, nil, nil, fmt.Errorf("fail to copy localized components: %w", err)
-		}
-	}
-
 	// compile proxy document
 	for op, pop := range pe.Proxied() {
 		uop, err := pop.GetUpstreamOperation()
@@ -236,6 +227,15 @@ func (pe *ProxyExtension) CreateProxyDoc() (b []byte, ndoc libopenapi.Document, 
 			opExt.Set(m.Key(), m.Value())
 		}
 		op.Extensions = opExt
+	}
+
+	components := util.NewStubComponents()
+	for pop, doc := range pe.Upstream() {
+		docv3, _ := doc.BuildV3Model()
+		err := components.CopyLocalizedComponents(docv3, pop.GetName())
+		if err != nil {
+			return nil, nil, nil, fmt.Errorf("fail to copy localized components: %w", err)
+		}
 	}
 
 	err = components.CopyComponents(pe.docv3, "")
