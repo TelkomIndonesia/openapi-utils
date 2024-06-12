@@ -70,9 +70,11 @@ func (c StubComponents) copyComponents(docv3 *libopenapi.DocumentModel[v3.Docume
 				return fmt.Errorf("fail to locate component: %w", err)
 			}
 
-			if localized {
-				LocalizeReference(ref, prefix)
+			if !localized {
+				continue
 			}
+
+			LocalizeReference(ref, prefix)
 		}
 	}
 
@@ -80,8 +82,11 @@ func (c StubComponents) copyComponents(docv3 *libopenapi.DocumentModel[v3.Docume
 		c.Extensions.Set(m.Key(), m.Value())
 	}
 
-	err = c.replaceRootNodes(docv3)
-	return
+	if !localized {
+		return
+	}
+
+	return c.replaceRootNodes(docv3)
 }
 
 func (c StubComponents) copyComponentNode(src *index.Reference, prefix string) (err error) {
