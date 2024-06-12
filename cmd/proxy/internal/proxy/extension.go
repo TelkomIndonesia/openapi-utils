@@ -247,7 +247,7 @@ func (pe *ProxyExtension) CreateProxyDoc() (b []byte, ndoc libopenapi.Document, 
 		docs[docv3] = struct{}{}
 	}
 	for docv3 := range docs {
-		err := components.CopyLocalizedComponents(docv3, "")
+		err := components.CopyComponents(docv3, "")
 		if err != nil {
 			return nil, nil, nil, fmt.Errorf("fail to copy localized components: %w", err)
 		}
