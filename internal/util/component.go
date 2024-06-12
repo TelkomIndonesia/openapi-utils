@@ -18,7 +18,7 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-func CopyLocalizedComponents(ctx context.Context, src libopenapi.Document, prefix string, dst libopenapi.Document) (nsrc libopenapi.Document, err error) {
+func CopyAndLocalizeComponents(ctx context.Context, src libopenapi.Document, prefix string, dst libopenapi.Document) (nsrc libopenapi.Document, err error) {
 	// duplicate components on source doc with added prefix and rerender
 	srcv3, errs := src.BuildV3Model()
 	if err = errors.Join(errs...); err != nil {
@@ -39,7 +39,7 @@ func CopyLocalizedComponents(ctx context.Context, src libopenapi.Document, prefi
 	}
 	InitComponents(dstv3)
 	for _, ref := range srcv3.Index.GetRawReferencesSequenced() {
-		err = CopyLocalizedComponent(ctx, ref, prefix, dstv3.Model.Components)
+		err = CopyAndLocalizeComponent(ctx, ref, prefix, dstv3.Model.Components)
 	}
 
 	return src, err
@@ -83,7 +83,7 @@ func InitComponents(doc *libopenapi.DocumentModel[v3.Document]) {
 	doc.Model.Components = comp
 }
 
-func CopyLocalizedComponent(
+func CopyAndLocalizeComponent(
 	ctx context.Context,
 	src *index.Reference,
 	prefix string,

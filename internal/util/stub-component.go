@@ -45,7 +45,7 @@ func NewStubComponents() (c StubComponents) {
 	return
 }
 
-func (c StubComponents) CopyLocalizedComponents(docv3 *libopenapi.DocumentModel[v3.Document], prefix string) (err error) {
+func (c StubComponents) CopyAndLocalizeComponents(docv3 *libopenapi.DocumentModel[v3.Document], prefix string) (err error) {
 	return c.copyComponents(docv3, prefix, true)
 }
 

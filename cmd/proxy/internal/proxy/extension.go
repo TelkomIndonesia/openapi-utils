@@ -165,7 +165,7 @@ func (pe *ProxyExtension) pruneAndPrefixUpstreamDocs(ctx context.Context) (err e
 
 		// rerender with prefixed added to all components
 		components = util.NewStubComponents()
-		err = components.CopyLocalizedComponents(docv3, prefix)
+		err = components.CopyAndLocalizeComponents(docv3, prefix)
 		if err != nil {
 			return fmt.Errorf("fail to copy components with prefix: %w", err)
 		}
