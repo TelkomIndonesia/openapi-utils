@@ -229,10 +229,10 @@ func (pe *ProxyExtension) CreateProxyDoc() (b []byte, ndoc libopenapi.Document, 
 func (pe *ProxyExtension) renderAndReload() (b []byte, ndoc libopenapi.Document, docv3 *libopenapi.DocumentModel[v3.Document], err error) {
 	components := util.NewStubComponents()
 
-	docs := map[*libopenapi.DocumentModel[v3.Document]]struct{}{}
+	copied := map[*libopenapi.DocumentModel[v3.Document]]struct{}{}
 	for _, pop := range pe.Proxied() {
 		docv3, _ := pop.GetOpenAPIV3Doc()
-		if _, ok := docs[docv3]; ok {
+		if _, ok := copied[docv3]; ok {
 			continue
 		}
 
@@ -241,7 +241,7 @@ func (pe *ProxyExtension) renderAndReload() (b []byte, ndoc libopenapi.Document,
 			return nil, nil, nil, fmt.Errorf("fail to copy localized components: %w", err)
 		}
 
-		docs[docv3] = struct{}{}
+		copied[docv3] = struct{}{}
 	}
 
 	err = components.CopyComponents(pe.docv3, "")
