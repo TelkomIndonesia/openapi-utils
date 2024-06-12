@@ -18,11 +18,10 @@ type ProxyExtension struct {
 	specPath string
 	specDir  string
 
-	doc            libopenapi.Document
-	docv3          *libopenapi.DocumentModel[v3.Document]
-	proxied        map[*v3.Operation]*ProxyOperation
-	loadedUpstream map[libopenapi.Document]map[*v3.Operation]map[*ProxyOperation]struct{}
-	upstream       map[*ProxyOperation]libopenapi.Document
+	doc      libopenapi.Document
+	docv3    *libopenapi.DocumentModel[v3.Document]
+	proxied  map[*v3.Operation]*ProxyOperation
+	upstream map[libopenapi.Document]map[*v3.Operation]map[*ProxyOperation]struct{}
 }
 
 func NewProxyExtension(ctx context.Context, specPath string) (pe ProxyExtension, err error) {
@@ -41,7 +40,6 @@ func NewProxyExtension(ctx context.Context, specPath string) (pe ProxyExtension,
 	if err = pe.pruneAndPrefixUpstreamDocs(ctx); err != nil {
 		return
 	}
-	pe.updateProxied()
 
 	return
 }
@@ -67,7 +65,7 @@ func (pe *ProxyExtension) loadDoc() (err error) {
 
 func (pe *ProxyExtension) loadProxied(ctx context.Context) (err error) {
 	pe.proxied = map[*v3.Operation]*ProxyOperation{}
-	pe.loadedUpstream = make(map[libopenapi.Document]map[*v3.Operation]map[*ProxyOperation]struct{})
+	pe.upstream = make(map[libopenapi.Document]map[*v3.Operation]map[*ProxyOperation]struct{})
 
 	proxies := map[string]*Proxy{}
 	if pe.docv3.Model.Components.Extensions != nil {
@@ -117,21 +115,20 @@ func (pe *ProxyExtension) loadProxied(ctx context.Context) (err error) {
 			}
 
 			pe.proxied[op] = &pop
-			if _, ok := pe.loadedUpstream[doc]; !ok {
-				pe.loadedUpstream[doc] = map[*v3.Operation]map[*ProxyOperation]struct{}{}
+			if _, ok := pe.upstream[doc]; !ok {
+				pe.upstream[doc] = map[*v3.Operation]map[*ProxyOperation]struct{}{}
 			}
-			if _, ok := pe.loadedUpstream[doc][uop]; !ok {
-				pe.loadedUpstream[doc][uop] = map[*ProxyOperation]struct{}{}
+			if _, ok := pe.upstream[doc][uop]; !ok {
+				pe.upstream[doc][uop] = map[*ProxyOperation]struct{}{}
 			}
-			pe.loadedUpstream[doc][uop][&pop] = struct{}{}
+			pe.upstream[doc][uop][&pop] = struct{}{}
 		}
 	}
 	return
 }
 
 func (pe *ProxyExtension) pruneAndPrefixUpstreamDocs(ctx context.Context) (err error) {
-	pe.upstream = map[*ProxyOperation]libopenapi.Document{}
-	for doc, uopPopMap := range pe.loadedUpstream {
+	for doc, uopPopMap := range pe.upstream {
 		docv3, _ := doc.BuildV3Model()
 		prefix := util.MapFirstEntry(util.MapFirstEntry(uopPopMap).Value).Key.GetName()
 
@@ -180,21 +177,11 @@ func (pe *ProxyExtension) pruneAndPrefixUpstreamDocs(ctx context.Context) (err e
 		// store it
 		for _, popmap := range uopPopMap {
 			for pop := range popmap {
-				pe.upstream[pop] = doc
+				*pop = pop.WithReloadedDoc(doc)
 			}
 		}
 	}
 	return
-}
-
-func (pe *ProxyExtension) updateProxied() {
-	for _, pop := range pe.proxied {
-		doc, ok := pe.upstream[pop]
-		if !ok {
-			continue
-		}
-		*pop = pop.WithReloadedDoc(doc)
-	}
 }
 
 func (pe *ProxyExtension) Doc() libopenapi.Document {
@@ -207,10 +194,6 @@ func (pe *ProxyExtension) DocV3() *libopenapi.DocumentModel[v3.Document] {
 
 func (pe *ProxyExtension) Proxied() map[*v3.Operation]*ProxyOperation {
 	return pe.proxied
-}
-
-func (pe *ProxyExtension) Upstream() map[*ProxyOperation]libopenapi.Document {
-	return pe.upstream
 }
 
 func (pe *ProxyExtension) CreateProxyDoc() (b []byte, ndoc libopenapi.Document, docv3 *libopenapi.DocumentModel[v3.Document], err error) {
@@ -240,21 +223,31 @@ func (pe *ProxyExtension) CreateProxyDoc() (b []byte, ndoc libopenapi.Document, 
 		op.Extensions = opExt
 	}
 
+	return pe.renderAndReload()
+}
+
+func (pe *ProxyExtension) renderAndReload() (b []byte, ndoc libopenapi.Document, docv3 *libopenapi.DocumentModel[v3.Document], err error) {
 	components := util.NewStubComponents()
+
 	docs := map[*libopenapi.DocumentModel[v3.Document]]struct{}{}
-	for _, doc := range pe.Upstream() {
-		docv3, _ := doc.BuildV3Model()
-		docs[docv3] = struct{}{}
-	}
-	for docv3 := range docs {
+	for _, pop := range pe.Proxied() {
+		docv3, _ := pop.GetOpenAPIV3Doc()
+		if _, ok := docs[docv3]; ok {
+			continue
+		}
+
 		err := components.CopyComponents(docv3, "")
 		if err != nil {
 			return nil, nil, nil, fmt.Errorf("fail to copy localized components: %w", err)
 		}
+
+		docs[docv3] = struct{}{}
 	}
+
 	err = components.CopyComponents(pe.docv3, "")
 	if err != nil {
 		return nil, nil, nil, fmt.Errorf("fail to copy components on proxy doc: %w", err)
 	}
+
 	return components.RenderAndReload(pe.Doc())
 }
