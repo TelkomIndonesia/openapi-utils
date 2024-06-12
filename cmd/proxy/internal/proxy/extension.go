@@ -34,10 +34,13 @@ func NewProxyExtension(ctx context.Context, specPath string) (pe ProxyExtension,
 	if err = pe.loadDoc(); err != nil {
 		return
 	}
-	if err = pe.loadProxied(ctx); err != nil {
+	if err = pe.loadProxy(ctx); err != nil {
 		return
 	}
-	if err = pe.pruneAndPrefixUpstreamDocs(ctx); err != nil {
+	if err = pe.pruneAndPrefixUpstream(ctx); err != nil {
+		return
+	}
+	if err = pe.compile(); err != nil {
 		return
 	}
 
@@ -63,7 +66,7 @@ func (pe *ProxyExtension) loadDoc() (err error) {
 	return
 }
 
-func (pe *ProxyExtension) loadProxied(ctx context.Context) (err error) {
+func (pe *ProxyExtension) loadProxy(ctx context.Context) (err error) {
 	pe.proxied = map[*v3.Operation]*ProxyOperation{}
 	pe.upstream = make(map[libopenapi.Document]map[*v3.Operation]map[*ProxyOperation]struct{})
 
@@ -127,7 +130,7 @@ func (pe *ProxyExtension) loadProxied(ctx context.Context) (err error) {
 	return
 }
 
-func (pe *ProxyExtension) pruneAndPrefixUpstreamDocs(ctx context.Context) (err error) {
+func (pe *ProxyExtension) pruneAndPrefixUpstream(ctx context.Context) (err error) {
 	for doc, uopPopMap := range pe.upstream {
 		docv3, _ := doc.BuildV3Model()
 		prefix := util.MapFirstEntry(util.MapFirstEntry(uopPopMap).Value).Key.GetName()
@@ -184,28 +187,16 @@ func (pe *ProxyExtension) pruneAndPrefixUpstreamDocs(ctx context.Context) (err e
 	return
 }
 
-func (pe *ProxyExtension) Doc() libopenapi.Document {
-	return pe.doc
-}
-
-func (pe *ProxyExtension) DocV3() *libopenapi.DocumentModel[v3.Document] {
-	return pe.docv3
-}
-
-func (pe *ProxyExtension) Proxied() map[*v3.Operation]*ProxyOperation {
-	return pe.proxied
-}
-
-func (pe *ProxyExtension) CreateProxyDoc() (b []byte, ndoc libopenapi.Document, docv3 *libopenapi.DocumentModel[v3.Document], err error) {
-	// compile proxy document
-	for op, pop := range pe.Proxied() {
+// compile proxy document
+func (pe *ProxyExtension) compile() (err error) {
+	for op, pop := range pe.proxied {
 		uop, err := pop.GetUpstreamOperation()
 		if err != nil {
-			return nil, nil, nil, err
+			return fmt.Errorf("fail to get upstream operation: %w", err)
 		}
 		params, err := pop.GetProxiedParameters()
 		if err != nil {
-			return nil, nil, nil, err
+			return fmt.Errorf("fail to get proxied parameter: %w", err)
 		}
 
 		// copy operation
@@ -223,14 +214,14 @@ func (pe *ProxyExtension) CreateProxyDoc() (b []byte, ndoc libopenapi.Document, 
 		op.Extensions = opExt
 	}
 
-	return pe.renderAndReload()
+	return
 }
 
-func (pe *ProxyExtension) renderAndReload() (b []byte, ndoc libopenapi.Document, docv3 *libopenapi.DocumentModel[v3.Document], err error) {
+func (pe *ProxyExtension) CreateProxyDoc() (b []byte, ndoc libopenapi.Document, docv3 *libopenapi.DocumentModel[v3.Document], err error) {
 	components := util.NewStubComponents()
 
 	copied := map[*libopenapi.DocumentModel[v3.Document]]struct{}{}
-	for _, pop := range pe.Proxied() {
+	for _, pop := range pe.proxied {
 		docv3, _ := pop.GetOpenAPIV3Doc()
 		if _, ok := copied[docv3]; ok {
 			continue
@@ -249,5 +240,5 @@ func (pe *ProxyExtension) renderAndReload() (b []byte, ndoc libopenapi.Document,
 		return nil, nil, nil, fmt.Errorf("fail to copy components on proxy doc: %w", err)
 	}
 
-	return components.RenderAndReload(pe.Doc())
+	return components.RenderAndReload(pe.doc)
 }
