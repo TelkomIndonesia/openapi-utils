@@ -11,7 +11,7 @@ import (
 
 func TestCompile(t *testing.T) {
 	src := "./testdata/spec-proxy.yml"
-	bytes, _, err := CompileByte(context.Background(), src)
+	bytes, _, err := Compile(context.Background(), src)
 	require.NoError(t, err)
 	doc, err := libopenapi.NewDocument(bytes)
 	require.NoError(t, err)
