@@ -56,9 +56,9 @@ func Generate(ctx context.Context, specPath string) (err error) {
 	}
 
 	{
-		codegen.TemplateFunctions["withPrefix"] = func(s string) string { return "Out" + s }
+		codegen.TemplateFunctions["withPrefix"] = func(s string) string { return "Upstream" + s }
 		generated := map[*libopenapi.DocumentModel[v3.Document]]struct{}{}
-		for _, pop := range pe.proxied {
+		for _, pop := range pe.Proxied() {
 			doc, err := pop.GetOpenAPIDoc()
 			if err != nil {
 				return fmt.Errorf("fail to find upstream openapi doc: %w", err)
@@ -85,7 +85,7 @@ func Generate(ctx context.Context, specPath string) (err error) {
 				},
 				OutputOptions: codegen.OutputOptions{
 					UserTemplates:  t,
-					ClientTypeName: "Profile",
+					ClientTypeName: codegen.UppercaseFirstCharacter(pop.GetName()),
 				},
 			})
 			if err != nil {
