@@ -135,11 +135,13 @@ func (pe *ProxyExtension) pruneAndPrefixUpstream(ctx context.Context) (err error
 		docv3, _ := doc.BuildV3Model()
 		prefix := util.MapFirstEntry(util.MapFirstEntry(uopPopMap).Value).Key.GetName()
 
-		// delete unused operation
+		// add prefix to operation id
 		opmap := map[*v3.Operation]struct{}{}
-		for k := range uopPopMap {
-			opmap[k] = struct{}{}
+		for uop, popmap := range uopPopMap {
+			opmap[uop] = struct{}{}
+			uop.OperationId = util.MapFirstEntry(popmap).Key.GetName() + uop.OperationId
 		}
+		// delete unused operation
 		for m := range orderedmap.Iterate(ctx, docv3.Model.Paths.PathItems) {
 			pathItem := m.Value()
 			for method, op := range util.GetOperationsMap(m.Value()) {
@@ -215,6 +217,9 @@ func (pe *ProxyExtension) compile() (err error) {
 	}
 
 	return
+}
+func (pe *ProxyExtension) Proxied() map[*v3.Operation]*ProxyOperation {
+	return pe.proxied
 }
 
 func (pe *ProxyExtension) CreateProxyDoc() (b []byte, ndoc libopenapi.Document, docv3 *libopenapi.DocumentModel[v3.Document], err error) {
