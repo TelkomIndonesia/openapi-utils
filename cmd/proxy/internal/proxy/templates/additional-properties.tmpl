@@ -1,16 +1,16 @@
 {{range .Types}}{{$addType := .Schema.AdditionalPropertiesType.TypeDecl}}
 
-// Getter for additional properties for {{.TypeName}}. Returns the specified
+// Getter for additional properties for {{withPrefix .TypeName}}. Returns the specified
 // element and whether it was found
-func (a {{.TypeName}}) Get(fieldName string) (value {{$addType}}, found bool) {
+func (a {{withPrefix .TypeName}}) Get(fieldName string) (value {{$addType}}, found bool) {
     if a.AdditionalProperties != nil {
         value, found = a.AdditionalProperties[fieldName]
     }
     return
 }
 
-// Setter for additional properties for {{.TypeName}}
-func (a *{{.TypeName}}) Set(fieldName string, value {{$addType}}) {
+// Setter for additional properties for {{withPrefix .TypeName}}
+func (a *{{withPrefix .TypeName}}) Set(fieldName string, value {{$addType}}) {
     if a.AdditionalProperties == nil {
         a.AdditionalProperties = make(map[string]{{$addType}})
     }
@@ -18,8 +18,8 @@ func (a *{{.TypeName}}) Set(fieldName string, value {{$addType}}) {
 }
 
 {{if eq 0 (len .Schema.UnionElements) -}}
-// Override default JSON handling for {{.TypeName}} to handle AdditionalProperties
-func (a *{{.TypeName}}) UnmarshalJSON(b []byte) error {
+// Override default JSON handling for {{withPrefix .TypeName}} to handle AdditionalProperties
+func (a *{{withPrefix .TypeName}}) UnmarshalJSON(b []byte) error {
     object := make(map[string]json.RawMessage)
 	err := json.Unmarshal(b, &object)
 	if err != nil {
@@ -49,7 +49,7 @@ func (a *{{.TypeName}}) UnmarshalJSON(b []byte) error {
 }
 
 // Override default JSON handling for {{.TypeName}} to handle AdditionalProperties
-func (a {{.TypeName}}) MarshalJSON() ([]byte, error) {
+func (a {{withPrefix .TypeName}}) MarshalJSON() ([]byte, error) {
     var err error
     object := make(map[string]json.RawMessage)
 {{range .Schema.Properties}}

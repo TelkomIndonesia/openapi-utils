@@ -1,22 +1,21 @@
-// ClientWithResponses builds on ClientInterface to offer response payloads
-type ClientWithResponses struct {
-    ClientInterface
+{{$clientTypeName := (withPrefix opts.OutputOptions.ClientTypeName) -}}
+// {{ $clientTypeName }}WithResponses builds on ClientInterface to offer response payloads
+type {{ $clientTypeName }}WithResponses struct {
+    {{ $clientTypeName }}Interface
 }
 
-// NewClientWithResponses creates a new ClientWithResponses, which wraps
+// New{{ $clientTypeName }}WithResponses creates a new {{ $clientTypeName }}WithResponses, which wraps
 // Client with return type handling
-func NewClientWithResponses(server string, opts ...ClientOption) (*ClientWithResponses, error) {
-    client, err := NewClient(server, opts...)
+func New{{ $clientTypeName }}ithResponses(server string, opts ...{{ $clientTypeName }}Option) (*{{ $clientTypeName }}WithResponses, error) {
+    client, err := New{{ $clientTypeName }}(server, opts...)
     if err != nil {
         return nil, err
     }
-    return &ClientWithResponses{client}, nil
+    return &{{ $clientTypeName }}WithResponses{client}, nil
 }
 
-{{$clientTypeName := opts.OutputOptions.ClientTypeName -}}
-
 // WithBaseURL overrides the baseURL.
-func WithBaseURL(baseURL string) ClientOption {
+func {{ $clientTypeName }}WithBaseURL(baseURL string) ClientOption {
 	return func(c *{{ $clientTypeName }}) error {
 		newBaseURL, err := url.Parse(baseURL)
 		if err != nil {
@@ -27,8 +26,8 @@ func WithBaseURL(baseURL string) ClientOption {
 	}
 }
 
-// ClientWithResponsesInterface is the interface specification for the client with responses above.
-type ClientWithResponsesInterface interface {
+// {{ $clientTypeName }}WithResponsesInterface is the interface specification for the client with responses above.
+type {{ $clientTypeName }}WithResponsesInterface interface {
 {{range . -}}
 {{$hasParams := .RequiresParamObject -}}
 {{$pathParams := .PathParams -}}
@@ -48,7 +47,7 @@ type {{genResponseTypeName $opid | ucFirst}} struct {
     Body         []byte
 	HTTPResponse *http.Response
     {{- range getResponseTypeDefinitions .}}
-    {{.TypeName}} *{{.Schema.TypeDecl}}
+    {{withPrefix .TypeName}} *{{.Schema.TypeDecl}}
     {{- end}}
 }
 

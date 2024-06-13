@@ -6,10 +6,10 @@ const (
 )
 {{end}}
 {{range $Enum := .EnumDefinitions}}
-// Defines values for {{$Enum.TypeName}}.
+// Defines values for {{withPrefix $Enum.TypeName}}.
 const (
 {{range $name, $value := $Enum.GetValues}}
-  {{$name}} {{$Enum.TypeName}} = {{$Enum.ValueWrapper}}{{$value}}{{$Enum.ValueWrapper -}}
+  {{$name}} {{withPrefix $Enum.TypeName}} = {{$Enum.ValueWrapper}}{{$value}}{{$Enum.ValueWrapper -}}
 {{end}}
 )
 {{end}}

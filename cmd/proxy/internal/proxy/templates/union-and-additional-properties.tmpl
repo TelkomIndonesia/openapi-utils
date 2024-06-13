@@ -1,12 +1,12 @@
 {{range .Types}}
 
 {{$addType := .Schema.AdditionalPropertiesType.TypeDecl}}
-{{$typeName := .TypeName -}}
+{{$typeName := withPrefix .TypeName -}}
 {{$discriminator := .Schema.Discriminator}}
 {{$properties := .Schema.Properties -}}
 
-// Override default JSON handling for {{.TypeName}} to handle AdditionalProperties and union
-func (a *{{.TypeName}}) UnmarshalJSON(b []byte) error {
+// Override default JSON handling for {{withPrefix .TypeName}} to handle AdditionalProperties and union
+func (a *{{withPrefix .TypeName}}) UnmarshalJSON(b []byte) error {
     err := a.union.UnmarshalJSON(b)
     if err != nil {
         return err
@@ -39,8 +39,8 @@ func (a *{{.TypeName}}) UnmarshalJSON(b []byte) error {
 	return nil
 }
 
-// Override default JSON handling for {{.TypeName}} to handle AdditionalProperties and union
-func (a {{.TypeName}}) MarshalJSON() ([]byte, error) {
+// Override default JSON handling for {{withPrefix .TypeName}} to handle AdditionalProperties and union
+func (a {{withPrefix .TypeName}}) MarshalJSON() ([]byte, error) {
     var err error
     b, err := a.union.MarshalJSON()
     if err != nil {

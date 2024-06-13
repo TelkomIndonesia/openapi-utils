@@ -1,4 +1,4 @@
 {{range .Types}}
-{{ if .Schema.Description }}{{ toGoComment .Schema.Description .TypeName  }}{{ else }}// {{.TypeName}} defines model for {{.JsonName}}.{{ end }}
-type {{.TypeName}} {{if .IsAlias }}={{end}} {{.Schema.TypeDecl}}
+{{ if .Schema.Description }}{{ toGoComment .Schema.Description (withPrefix .TypeName)  }}{{ else }}// {{withPrefix .TypeName}} defines model for {{.JsonName}}.{{ end }}
+type {{withPrefix  .TypeName}} {{if .IsAlias }}={{end}} {{.Schema.TypeDecl}}
 {{end}}

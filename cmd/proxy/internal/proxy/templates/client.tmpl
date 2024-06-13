@@ -1,14 +1,15 @@
-// RequestEditorFn  is the function signature for the RequestEditor callback function
-type RequestEditorFn func(ctx context.Context, req *http.Request) error
+{{$clientTypeName := (withPrefix opts.OutputOptions.ClientTypeName) -}}
+
+// {{ $clientTypeName }}RequestEditorFn  is the function signature for the RequestEditor callback function
+type {{ $clientTypeName }}RequestEditorFn func(ctx context.Context, req *http.Request) error
 
 // Doer performs HTTP requests.
 //
 // The standard http.Client implements this interface.
-type HttpRequestDoer interface {
+type {{ $clientTypeName }}HttpRequestDoer interface {
 	Do(req *http.Request) (*http.Response, error)
 }
 
-{{$clientTypeName := opts.OutputOptions.ClientTypeName -}}
 
 // {{ $clientTypeName }} which conforms to the OpenAPI3 specification for this service.
 type {{ $clientTypeName }} struct {
@@ -24,14 +25,14 @@ type {{ $clientTypeName }} struct {
 
 	// A list of callbacks for modifying requests which are generated before sending over
 	// the network.
-	RequestEditors []RequestEditorFn
+	RequestEditors []{{ $clientTypeName }}RequestEditorFn
 }
 
-// ClientOption allows setting custom parameters during construction
-type ClientOption func(*{{ $clientTypeName }}) error
+// {{ $clientTypeName }}Option allows setting custom parameters during construction
+type {{ $clientTypeName }}Option func(*{{ $clientTypeName }}) error
 
 // Creates a new {{ $clientTypeName }}, with reasonable defaults
-func NewClient(server string, opts ...ClientOption) (*{{ $clientTypeName }}, error) {
+func New{{ $clientTypeName }}(server string, opts ...{{ $clientTypeName }}Option) (*{{ $clientTypeName }}, error) {
     // create a client with sane default values
     client := {{ $clientTypeName }}{
         Server: server,
@@ -53,18 +54,18 @@ func NewClient(server string, opts ...ClientOption) (*{{ $clientTypeName }}, err
     return &client, nil
 }
 
-// WithHTTPClient allows overriding the default Doer, which is
 // automatically created using http.Client. This is useful for tests.
-func WithHTTPClient(doer HttpRequestDoer) ClientOption {
+// {{ $clientTypeName }}WithHTTPClient allows overriding the default Doer, which is
+func {{ $clientTypeName }}WithHTTPClient(doer HttpRequestDoer) {{ $clientTypeName }}Option {
 	return func(c *{{ $clientTypeName }}) error {
 		c.Client = doer
 		return nil
 	}
 }
 
-// WithRequestEditorFn allows setting up a callback function, which will be
+// {{ $clientTypeName }}WithRequestEditorFn allows setting up a callback function, which will be
 // called right before sending the request. This can be used to mutate the request.
-func WithRequestEditorFn(fn RequestEditorFn) ClientOption {
+func {{ $clientTypeName }}WithRequestEditorFn(fn {{ $clientTypeName }}RequestEditorFn) {{ $clientTypeName }}Option {
 	return func(c *{{ $clientTypeName }}) error {
 		c.RequestEditors = append(c.RequestEditors, fn)
 		return nil
@@ -72,16 +73,16 @@ func WithRequestEditorFn(fn RequestEditorFn) ClientOption {
 }
 
 // The interface specification for the client above.
-type ClientInterface interface {
+type {{ $clientTypeName }}Interface interface {
 {{range . -}}
 {{$hasParams := .RequiresParamObject -}}
 {{$pathParams := .PathParams -}}
 {{$opid := .OperationId -}}
     // {{$opid}}{{if .HasBody}}WithBody{{end}} request{{if .HasBody}} with any body{{end}}
-    {{$opid}}{{if .HasBody}}WithBody{{end}}(ctx context.Context{{genParamArgs $pathParams}}{{if $hasParams}}, params *{{$opid}}Params{{end}}{{if .HasBody}}, contentType string, body io.Reader{{end}}, reqEditors... RequestEditorFn) (*http.Response, error)
+    {{$opid}}{{if .HasBody}}WithBody{{end}}(ctx context.Context{{genParamArgs $pathParams}}{{if $hasParams}}, params *{{$opid}}Params{{end}}{{if .HasBody}}, contentType string, body io.Reader{{end}}, reqEditors... {{ $clientTypeName }}RequestEditorFn) (*http.Response, error)
 {{range .Bodies}}
     {{if .IsSupportedByClient -}}
-    {{$opid}}{{.Suffix}}(ctx context.Context{{genParamArgs $pathParams}}{{if $hasParams}}, params *{{$opid}}Params{{end}}, body {{$opid}}{{.NameTag}}RequestBody, reqEditors... RequestEditorFn) (*http.Response, error)
+    {{$opid}}{{.Suffix}}(ctx context.Context{{genParamArgs $pathParams}}{{if $hasParams}}, params *{{$opid}}Params{{end}}, body {{$opid}}{{.NameTag}}RequestBody, reqEditors... {{ $clientTypeName }}RequestEditorFn) (*http.Response, error)
     {{end -}}
 {{end}}{{/* range .Bodies */}}
 {{end}}{{/* range . $opid := .OperationId */}}
@@ -94,7 +95,7 @@ type ClientInterface interface {
 {{$pathParams := .PathParams -}}
 {{$opid := .OperationId -}}
 
-func (c *{{ $clientTypeName }}) {{$opid}}{{if .HasBody}}WithBody{{end}}(ctx context.Context{{genParamArgs $pathParams}}{{if $hasParams}}, params *{{$opid}}Params{{end}}{{if .HasBody}}, contentType string, body io.Reader{{end}}, reqEditors... RequestEditorFn) (*http.Response, error) {
+func (c *{{ $clientTypeName }}) {{$opid}}{{if .HasBody}}WithBody{{end}}(ctx context.Context{{genParamArgs $pathParams}}{{if $hasParams}}, params *{{$opid}}Params{{end}}{{if .HasBody}}, contentType string, body io.Reader{{end}}, reqEditors... {{ $clientTypeName }}RequestEditorFn) (*http.Response, error) {
     req, err := New{{$opid}}Request{{if .HasBody}}WithBody{{end}}(c.Server{{genParamNames .PathParams}}{{if $hasParams}}, params{{end}}{{if .HasBody}}, contentType, body{{end}})
     if err != nil {
         return nil, err
@@ -108,7 +109,7 @@ func (c *{{ $clientTypeName }}) {{$opid}}{{if .HasBody}}WithBody{{end}}(ctx cont
 
 {{range .Bodies}}
 {{if .IsSupportedByClient -}}
-func (c *{{ $clientTypeName }}) {{$opid}}{{.Suffix}}(ctx context.Context{{genParamArgs $pathParams}}{{if $hasParams}}, params *{{$opid}}Params{{end}}, body {{$opid}}{{.NameTag}}RequestBody, reqEditors... RequestEditorFn) (*http.Response, error) {
+func (c *{{ $clientTypeName }}) {{$opid}}{{.Suffix}}(ctx context.Context{{genParamArgs $pathParams}}{{if $hasParams}}, params *{{$opid}}Params{{end}}, body {{$opid}}{{.NameTag}}RequestBody, reqEditors... {{ $clientTypeName }}RequestEditorFn) (*http.Response, error) {
     req, err := New{{$opid}}Request{{.Suffix}}(c.Server{{genParamNames $pathParams}}{{if $hasParams}}, params{{end}}, body)
     if err != nil {
         return nil, err
@@ -297,7 +298,7 @@ func New{{$opid}}Request{{if .HasBody}}WithBody{{end}}(server string{{genParamAr
 
 {{end}}{{/* Range */}}
 
-func (c *{{ $clientTypeName }}) applyEditors(ctx context.Context, req *http.Request, additionalEditors []RequestEditorFn) error {
+func (c *{{ $clientTypeName }}) applyEditors(ctx context.Context, req *http.Request, additionalEditors []{{ $clientTypeName }}RequestEditorFn) error {
     for _, r := range c.RequestEditors {
         if err := r(ctx, req); err != nil {
             return err

@@ -24,6 +24,7 @@ func Generate(ctx context.Context, specPath string) (err error) {
 	if err != nil {
 		return fmt.Errorf("fail to load template: %w", err)
 	}
+	codegen.TemplateFunctions["withPrefix"] = func(s string) string { return s }
 
 	{
 		spec, _, _, err := pe.CreateProxyDoc()
@@ -55,6 +56,7 @@ func Generate(ctx context.Context, specPath string) (err error) {
 	}
 
 	{
+		codegen.TemplateFunctions["withPrefix"] = func(s string) string { return "Out" + s }
 		generated := map[*libopenapi.DocumentModel[v3.Document]]struct{}{}
 		for _, pop := range pe.proxied {
 			doc, err := pop.GetOpenAPIDoc()
@@ -74,6 +76,7 @@ func Generate(ctx context.Context, specPath string) (err error) {
 			if err != nil {
 				return fmt.Errorf("fail to reload proxy doc with kin: %w", err)
 			}
+
 			code, err := codegen.Generate(kinspec, codegen.Configuration{
 				PackageName: "oapi",
 				Generate: codegen.GenerateOptions{
@@ -82,7 +85,7 @@ func Generate(ctx context.Context, specPath string) (err error) {
 				},
 				OutputOptions: codegen.OutputOptions{
 					UserTemplates:  t,
-					ClientTypeName: "Client",
+					ClientTypeName: "Profile",
 				},
 			})
 			if err != nil {
