@@ -49,6 +49,11 @@ paths:
               schema:
                   $ref: "#/components/schemas/UUID"
             - $ref: "#/components/parameters/ProfileID"
+            - name: "some-query"
+              in: query
+              required: false
+              schema:
+                  type: string
         get:
             security:
                 - {}
