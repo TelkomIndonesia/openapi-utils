@@ -144,11 +144,14 @@ func (pe *ProxyExtension) pruneAndPrefixUpstream(ctx context.Context) (err error
 		// delete unused operation
 		for m := range orderedmap.Iterate(ctx, docv3.Model.Paths.PathItems) {
 			pathItem := m.Value()
-			for method, op := range util.GetOperationsMap(m.Value()) {
+			for method, op := range util.GetOperationsMap(pathItem) {
 				if _, ok := opmap[op]; ok {
 					continue
 				}
 				util.SetOperation(pathItem, method, nil)
+			}
+			if len(util.GetOperationsMap(pathItem)) == 0 {
+				docv3.Model.Paths.PathItems.Delete(m.Key())
 			}
 		}
 
