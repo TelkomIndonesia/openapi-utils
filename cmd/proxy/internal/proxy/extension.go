@@ -141,7 +141,7 @@ func (pe *ProxyExtension) pruneAndPrefixUpstream(ctx context.Context) (err error
 			opmap[uop] = struct{}{}
 			uop.OperationId = util.MapFirstEntry(popmap).Key.GetName() + uop.OperationId
 		}
-		// delete unused operation
+		// delete unused operations and path items
 		for m := range orderedmap.Iterate(ctx, docv3.Model.Paths.PathItems) {
 			pathItem := m.Value()
 			for method, op := range util.GetOperationsMap(pathItem) {
