@@ -25,6 +25,7 @@ func Generate(ctx context.Context, specPath string) (err error) {
 		return fmt.Errorf("fail to load template: %w", err)
 	}
 	codegen.TemplateFunctions["withPrefix"] = func(s string) string { return s }
+	codegen.TemplateFunctions["upstreamOperationID"] = func(opid string) string { return "" }
 
 	{
 		spec, _, _, err := pe.CreateProxyDoc()
@@ -34,6 +35,17 @@ func Generate(ctx context.Context, specPath string) (err error) {
 		kinspec, err := loadKinDoc(spec)
 		if err != nil {
 			return fmt.Errorf("fail to reload proxy doc with kin: %w", err)
+		}
+		codegen.TemplateFunctions["upstreamOperationID"] = func(opid string) string {
+			for k, v := range pe.proxied {
+				if opid != k.OperationId {
+					continue
+				}
+
+				uop, _ := v.GetUpstreamOperation()
+				return uop.OperationId
+			}
+			return ""
 		}
 		code, err := codegen.Generate(kinspec, codegen.Configuration{
 			PackageName: "oapi",
@@ -80,8 +92,10 @@ func Generate(ctx context.Context, specPath string) (err error) {
 			code, err := codegen.Generate(kinspec, codegen.Configuration{
 				PackageName: "oapi",
 				Generate: codegen.GenerateOptions{
-					Client: true,
-					Models: true,
+					EchoServer: true,
+					Strict:     true,
+					Client:     true,
+					Models:     true,
 				},
 				OutputOptions: codegen.OutputOptions{
 					UserTemplates:  t,
