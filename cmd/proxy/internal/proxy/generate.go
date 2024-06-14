@@ -6,26 +6,24 @@ import (
 	"fmt"
 	"io/fs"
 	"os"
+	"path"
 	"strings"
 
 	"github.com/getkin/kin-openapi/openapi3"
 	"github.com/oapi-codegen/oapi-codegen/v2/pkg/codegen"
 	"github.com/pb33f/libopenapi"
 	v3 "github.com/pb33f/libopenapi/datamodel/high/v3"
+	"github.com/pb33f/libopenapi/orderedmap"
+	"github.com/telkomindonesia/openapi-utils/internal/util"
 )
+
+const prefixUpstream = "Upstream"
 
 func Generate(ctx context.Context, specPath string) (err error) {
 	pe, err := NewProxyExtension(ctx, specPath)
 	if err != nil {
 		return fmt.Errorf("fail to create proxy extension: %w", err)
 	}
-
-	t, err := loadTemplates()
-	if err != nil {
-		return fmt.Errorf("fail to load template: %w", err)
-	}
-	codegen.TemplateFunctions["withPrefix"] = func(s string) string { return s }
-	codegen.TemplateFunctions["upstreamOperationID"] = func(opid string) string { return "" }
 
 	{
 		spec, _, _, err := pe.CreateProxyDoc()
@@ -36,6 +34,11 @@ func Generate(ctx context.Context, specPath string) (err error) {
 		if err != nil {
 			return fmt.Errorf("fail to reload proxy doc with kin: %w", err)
 		}
+
+		t, err := loadTemplates("proxy")
+		if err != nil {
+			return fmt.Errorf("fail to load template: %w", err)
+		}
 		codegen.TemplateFunctions["upstreamOperationID"] = func(opid string) string {
 			for k, v := range pe.proxied {
 				if opid != k.OperationId {
@@ -43,7 +46,7 @@ func Generate(ctx context.Context, specPath string) (err error) {
 				}
 
 				uop, _ := v.GetUpstreamOperation()
-				return uop.OperationId
+				return prefixUpstream + uop.OperationId
 			}
 			return ""
 		}
@@ -61,14 +64,18 @@ func Generate(ctx context.Context, specPath string) (err error) {
 		if err != nil {
 			return fmt.Errorf("fail to generate code: %w", err)
 		}
-		err = os.WriteFile("testdata/gen/oapi-server.go", []byte(code), 0o644)
+		err = os.WriteFile("testdata/gen/oapi-proxy.go", []byte(code), 0o644)
 		if err != nil {
 			return fmt.Errorf("fail to write generated code: %w", err)
 		}
 	}
 
 	{
-		codegen.TemplateFunctions["withPrefix"] = func(s string) string { return "Upstream" + s }
+		t, err := loadTemplates("upstream")
+		if err != nil {
+			return fmt.Errorf("fail to load template: %w", err)
+		}
+
 		generated := map[*libopenapi.DocumentModel[v3.Document]]struct{}{}
 		for _, pop := range pe.Proxied() {
 			doc, err := pop.GetOpenAPIDoc()
@@ -80,10 +87,20 @@ func Generate(ctx context.Context, specPath string) (err error) {
 				continue
 			}
 
-			spec, err := doc.Render()
-			if err != nil {
-				return fmt.Errorf("fail to render upstream openapi doc: %w", err)
+			// add prefix
+			for m := range orderedmap.Iterate(ctx, docv3.Model.Paths.PathItems) {
+				for _, op := range util.GetOperationsMap(m.Value()) {
+					op.OperationId = prefixUpstream + op.OperationId
+				}
 			}
+			components := util.NewStubComponents()
+			components.CopyComponents(docv3, "")
+			components.CopyComponents(docv3, prefixUpstream)
+			_, ndoc, ndocv3, _ := components.RenderAndReload(doc)
+			components = util.NewStubComponents()
+			components.CopyAndLocalizeComponents(ndocv3, prefixUpstream)
+			spec, _, _, _ := components.RenderAndReload(ndoc)
+
 			kinspec, err := loadKinDoc(spec)
 			if err != nil {
 				return fmt.Errorf("fail to reload proxy doc with kin: %w", err)
@@ -94,19 +111,17 @@ func Generate(ctx context.Context, specPath string) (err error) {
 				Generate: codegen.GenerateOptions{
 					EchoServer: true,
 					Strict:     true,
-					Client:     true,
 					Models:     true,
 				},
 				OutputOptions: codegen.OutputOptions{
-					UserTemplates:  t,
-					ClientTypeName: codegen.UppercaseFirstCharacter(pop.GetName()),
+					UserTemplates: t,
 				},
 			})
 			if err != nil {
 				return fmt.Errorf("fail to generate code: %w", err)
 			}
 
-			file := fmt.Sprintf("testdata/gen/oapi-proxy-%s.go", pop.GetName())
+			file := fmt.Sprintf("testdata/gen/oapi-upstream-%s.go", strings.ToLower(pop.GetName()))
 			err = os.WriteFile(file, []byte(code), 0o644)
 			if err != nil {
 				return fmt.Errorf("fail to write generated code: %w", err)
@@ -130,9 +145,9 @@ func loadKinDoc(data []byte) (doc *openapi3.T, err error) {
 //go:embed templates/*
 var templates embed.FS
 
-func loadTemplates() (t map[string]string, err error) {
+func loadTemplates(dir string) (t map[string]string, err error) {
 	t = make(map[string]string)
-	err = fs.WalkDir(templates, ".", func(path string, d fs.DirEntry, err error) error {
+	err = fs.WalkDir(templates, path.Join("templates", dir), func(p string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return err
 		}
@@ -140,12 +155,12 @@ func loadTemplates() (t map[string]string, err error) {
 			return nil
 		}
 
-		buf, err := templates.ReadFile(path)
+		buf, err := templates.ReadFile(p)
 		if err != nil {
-			return fmt.Errorf("error reading file '%s': %w", path, err)
+			return fmt.Errorf("error reading file '%s': %w", p, err)
 		}
 
-		templateName := strings.TrimPrefix(path, "templates/")
+		templateName := strings.TrimPrefix(p, path.Join("templates", dir)+"/")
 		t[templateName] = string(buf)
 		return nil
 	})

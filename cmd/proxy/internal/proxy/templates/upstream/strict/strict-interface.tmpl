@@ -1,0 +1,150 @@
+{{range .}}
+    {{$opid := .OperationId -}}
+    type {{$opid | ucFirst}}RequestObject struct {
+        {{range .PathParams -}}
+            {{.GoName | ucFirst}} {{.TypeDef}} {{ .JsonTag}}
+        {{end -}}
+        {{if .RequiresParamObject -}}
+            Params {{$opid}}Params
+        {{end -}}
+    }
+
+    func ( r {{$opid | ucFirst}}RequestObject) CreateRequest(base *http.Request) (*http.Request,error) { 
+    {{range $paramIdx, $param := .PathParams}}
+        {{.GoVariableName}} := r.{{.GoName | ucFirst}}
+    {{- end}}
+        params := r.Params
+
+        var err error
+    {{range $paramIdx, $param := .PathParams}}
+        var pathParam{{$paramIdx}} string
+        {{if .IsPassThrough}}
+        pathParam{{$paramIdx}} = {{.GoVariableName}}
+        {{end}}
+        {{if .IsJson}}
+        var pathParamBuf{{$paramIdx}} []byte
+        pathParamBuf{{$paramIdx}}, err = json.Marshal({{.GoVariableName}})
+        if err != nil {
+            return nil, err
+        }
+        pathParam{{$paramIdx}} = string(pathParamBuf{{$paramIdx}})
+        {{end}}
+        {{if .IsStyled}}
+        pathParam{{$paramIdx}}, err = runtime.StyleParamWithLocation("{{.Style}}", {{.Explode}}, "{{.ParamName}}", runtime.ParamLocationPath, {{.GoVariableName}})
+        if err != nil {
+            return nil, err
+        }
+        {{end}}
+    {{end}}
+
+        operationPath := fmt.Sprintf("{{genParamFmtString .Path}}"{{range $paramIdx, $param := .PathParams}}, pathParam{{$paramIdx}}{{end}})
+        if operationPath[0] == '/' {
+            operationPath = "." + operationPath
+        }
+
+        queryURL, err := url.Parse(operationPath)
+        if err != nil {
+            return nil, err
+        }
+        
+        req := base.Clone(base.Context())
+        req.URL = queryURL
+
+    {{if .QueryParams}}
+        if params != nil {
+            queryValues := queryURL.Query()
+                {{range $paramIdx, $param := .QueryParams}}
+                {{if not .Required}} if params.{{.GoName}} != nil { {{end}}
+                {{if .IsPassThrough}}
+                queryValues.Add("{{.ParamName}}", {{if not .Required}}*{{end}}params.{{.GoName}})
+                {{end}}
+                {{if .IsJson}}
+                if queryParamBuf, err := json.Marshal({{if not .Required}}*{{end}}params.{{.GoName}}); err != nil {
+                    return nil, err
+                } else {
+                    queryValues.Add("{{.ParamName}}", string(queryParamBuf))
+                }
+
+                {{end}}
+                {{if .IsStyled}}
+                if queryFrag, err := runtime.StyleParamWithLocation("{{.Style}}", {{.Explode}}, "{{.ParamName}}", runtime.ParamLocationQuery, {{if not .Required}}*{{end}}params.{{.GoName}}); err != nil {
+                    return nil, err
+                } else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+                return nil, err
+                } else {
+                for k, v := range parsed {
+                    for _, v2 := range v {
+                        queryValues.Add(k, v2)
+                    }
+                }
+                }
+                {{end}}
+                {{if not .Required}}}{{end}}
+            {{end}}
+            queryURL.RawQuery = queryValues.Encode()
+        }
+    {{end}}{{/* if .QueryParams */}}
+
+    {{ if .HeaderParams }}
+        if params != nil {
+        {{range $paramIdx, $param := .HeaderParams}}
+            {{if not .Required}} if params.{{.GoName}} != nil { {{end}}
+            var headerParam{{$paramIdx}} string
+            {{if .IsPassThrough}}
+            headerParam{{$paramIdx}} = {{if not .Required}}*{{end}}params.{{.GoName}}
+            {{end}}
+            {{if .IsJson}}
+            var headerParamBuf{{$paramIdx}} []byte
+            headerParamBuf{{$paramIdx}}, err = json.Marshal({{if not .Required}}*{{end}}params.{{.GoName}})
+            if err != nil {
+                return nil, err
+            }
+            headerParam{{$paramIdx}} = string(headerParamBuf{{$paramIdx}})
+            {{end}}
+            {{if .IsStyled}}
+            headerParam{{$paramIdx}}, err = runtime.StyleParamWithLocation("{{.Style}}", {{.Explode}}, "{{.ParamName}}", runtime.ParamLocationHeader, {{if not .Required}}*{{end}}params.{{.GoName}})
+            if err != nil {
+                return nil, err
+            }
+            {{end}}
+            req.Header.Set("{{.ParamName}}", headerParam{{$paramIdx}})
+            {{if not .Required}}}{{end}}
+        {{end}}
+        }
+    {{- end }}{{/* if .HeaderParams */}}
+
+    {{ if .CookieParams }}
+        if params != nil {
+        {{range $paramIdx, $param := .CookieParams}}
+            {{if not .Required}} if params.{{.GoName}} != nil { {{end}}
+            var cookieParam{{$paramIdx}} string
+            {{if .IsPassThrough}}
+            cookieParam{{$paramIdx}} = {{if not .Required}}*{{end}}params.{{.GoName}}
+            {{end}}
+            {{if .IsJson}}
+            var cookieParamBuf{{$paramIdx}} []byte
+            cookieParamBuf{{$paramIdx}}, err = json.Marshal({{if not .Required}}*{{end}}params.{{.GoName}})
+            if err != nil {
+                return nil, err
+            }
+            cookieParam{{$paramIdx}} = url.QueryEscape(string(cookieParamBuf{{$paramIdx}}))
+            {{end}}
+            {{if .IsStyled}}
+            cookieParam{{$paramIdx}}, err = runtime.StyleParamWithLocation("simple", {{.Explode}}, "{{.ParamName}}", runtime.ParamLocationCookie, {{if not .Required}}*{{end}}params.{{.GoName}})
+            if err != nil {
+                return nil, err
+            }
+            {{end}}
+            cookie{{$paramIdx}} := &http.Cookie{
+                Name:"{{.ParamName}}",
+                Value:cookieParam{{$paramIdx}},
+            }
+            req.AddCookie(cookie{{$paramIdx}})
+            {{if not .Required}}}{{end}}
+        {{ end -}}
+        }
+    {{- end }}{{/* if .CookieParams */}}
+        return req, nil
+    }
+
+{{end}}

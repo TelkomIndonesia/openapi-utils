@@ -1,0 +1,50 @@
+type StrictHandlerFunc = strictecho.StrictEchoHandlerFunc
+type StrictMiddlewareFunc = strictecho.StrictEchoMiddlewareFunc
+
+func NewStrictHandler(ssi StrictServerInterface, middlewares []StrictMiddlewareFunc) ServerInterface {
+    return &strictHandler{ssi: ssi, middlewares: middlewares}
+}
+
+type strictHandler struct {
+    ssi StrictServerInterface
+    middlewares []StrictMiddlewareFunc
+}
+
+{{range .}}
+    {{$opid := .OperationId}}
+    // {{$opid}} operation middleware
+    func (sh *strictHandler) {{.OperationId}}(ctx echo.Context{{genParamArgs .PathParams}}{{if .RequiresParamObject}}, params {{.OperationId}}Params{{end}}) error {
+        var request {{$opid | ucFirst}}RequestObject
+
+        {{range .PathParams -}}
+            request.{{.GoName}} = {{.GoVariableName}}
+        {{end -}}
+
+        {{if .RequiresParamObject -}}
+            request.Params = params
+        {{end -}}
+
+        handler := func(ctx echo.Context, request interface{}) (interface{}, error){
+            return sh.ssi.{{.OperationId}}(ctx.Request().Context(), request.({{$opid | ucFirst}}RequestObject))
+        }
+        for _, middleware := range sh.middlewares {
+            handler = middleware(handler, "{{.OperationId}}")
+        }
+
+        obj, err := handler(ctx, request)
+        if err != nil {
+            return err
+        } 
+
+        outreqobj := obj.({{ (or (upstreamOperationID $opid)  $opid) | ucFirst}}RequestObject)
+
+        outreq, err := outreqobj.CreateRequest(ctx.Request())
+        if err != nil {
+            return err
+        }
+
+        //TODO: do proxy
+
+        return nil
+    }
+{{end}}

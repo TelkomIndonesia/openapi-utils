@@ -8,6 +8,7 @@ import (
 	"regexp"
 	"strings"
 
+	"github.com/oapi-codegen/oapi-codegen/v2/pkg/codegen"
 	"github.com/pb33f/libopenapi"
 	v3 "github.com/pb33f/libopenapi/datamodel/high/v3"
 	"github.com/telkomindonesia/openapi-utils/internal/util"
@@ -69,11 +70,11 @@ func (p *Proxy) GetOpenAPIV3Doc() (docv3 *libopenapi.DocumentModel[v3.Document],
 var nonAlphaNum = regexp.MustCompile("[^a-zA-Z0-9]")
 
 func (p Proxy) GetName() string {
-	if p.Name == "" {
-		name, _ := strings.CutSuffix(path.Base(p.Spec), path.Ext(p.Spec))
-		return string(nonAlphaNum.ReplaceAll([]byte(name), nil))
+	name := p.Name
+	if name == "" {
+		name, _ = strings.CutSuffix(path.Base(p.Spec), path.Ext(p.Spec))
 	}
-	return p.Name
+	return codegen.UppercaseFirstCharacter(name)
 }
 
 type ProxyOperation struct {
