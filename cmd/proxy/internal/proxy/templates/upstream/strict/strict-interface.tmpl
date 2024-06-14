@@ -46,9 +46,6 @@
         if err != nil {
             return nil, err
         }
-        
-        req := base.Clone(base.Context())
-        req.URL = queryURL
 
     {{if .QueryParams}}
         if params != nil {
@@ -84,6 +81,9 @@
             queryURL.RawQuery = queryValues.Encode()
         }
     {{end}}{{/* if .QueryParams */}}
+
+        req := base.Clone(base.Context())
+        req.URL = queryURL
 
     {{ if .HeaderParams }}
         if params != nil {
