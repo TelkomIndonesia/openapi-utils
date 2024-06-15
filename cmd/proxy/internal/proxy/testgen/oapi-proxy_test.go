@@ -130,7 +130,6 @@ func TestProxy(t *testing.T) {
 		id := uuid.NewString()
 		testtable := []struct {
 			i string
-			o string
 		}{
 			{
 				i: "/profiles/" + id,
