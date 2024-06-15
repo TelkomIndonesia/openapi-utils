@@ -11,6 +11,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/labstack/echo/v4"
+	strictecho "github.com/oapi-codegen/runtime/strictmiddleware/echo"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -26,13 +27,13 @@ func (p ProxyImpl) Profile() http.HandlerFunc {
 }
 
 type ServerImpl struct {
-	tenantID uuid.UUID
 }
 
 // GetProfile implements testgen.StrictServerInterface.
 func (s ServerImpl) GetProfile(ctx context.Context, request testgen.GetProfileRequestObject) (testgen.UpstreamProfileGetProfileRequestObject, error) {
+
 	return testgen.UpstreamProfileGetProfileRequestObject{
-		TenantId:  s.tenantID,
+		TenantId:  ctx.Value(ctxTenantID{}).(uuid.UUID),
 		ProfileId: request.ProfileId,
 		Params: testgen.UpstreamProfileGetProfileParams{
 			SomeQuery: request.Params.SomeQuery,
@@ -43,7 +44,7 @@ func (s ServerImpl) GetProfile(ctx context.Context, request testgen.GetProfileRe
 // GetValidatedProfile implements testgen.StrictServerInterface.
 func (s ServerImpl) GetValidatedProfile(ctx context.Context, request testgen.GetValidatedProfileRequestObject) (testgen.UpstreamProfileGetProfileRequestObject, error) {
 	return testgen.UpstreamProfileGetProfileRequestObject{
-		TenantId:  s.tenantID,
+		TenantId:  ctx.Value(ctxTenantID{}).(uuid.UUID),
 		ProfileId: request.ProfileId,
 		Params: testgen.UpstreamProfileGetProfileParams{
 			SomeQuery: request.Params.SomeQuery,
@@ -54,13 +55,15 @@ func (s ServerImpl) GetValidatedProfile(ctx context.Context, request testgen.Get
 // PutProfile implements testgen.StrictServerInterface.
 func (s ServerImpl) PutProfile(ctx context.Context, request testgen.PutProfileRequestObject) (testgen.UpstreamProfilePutProfileRequestObject, error) {
 	return testgen.UpstreamProfilePutProfileRequestObject{
-		TenantId:  s.tenantID,
+		TenantId:  ctx.Value(ctxTenantID{}).(uuid.UUID),
 		ProfileId: request.ProfileId,
 		Params: testgen.UpstreamProfilePutProfileParams{
 			SomeQuery: request.Params.SomeQuery,
 		},
 	}, nil
 }
+
+type ctxTenantID struct{}
 
 func TestProxy(t *testing.T) {
 	var receivedURL string
@@ -72,10 +75,23 @@ func TestProxy(t *testing.T) {
 	p := ProxyImpl{
 		profile: httputil.NewSingleHostReverseProxy(u),
 	}
-	s := ServerImpl{tenantID: uuid.New()}
+	s := ServerImpl{}
+
+	tenantID := uuid.New()
 
 	e := echo.New()
-	sh := testgen.NewStrictHandler(s, p, nil)
+	mw := func(f strictecho.StrictEchoHandlerFunc, operationID string) strictecho.StrictEchoHandlerFunc {
+		return func(ctx echo.Context, request interface{}) (response interface{}, err error) {
+			ctx.SetRequest(
+				ctx.Request().WithContext(
+					context.WithValue(ctx.Request().Context(),
+						ctxTenantID{}, tenantID,
+					)))
+
+			return f(ctx, request)
+		}
+	}
+	sh := testgen.NewStrictHandler(s, p, []strictecho.StrictEchoMiddlewareFunc{mw})
 	testgen.RegisterHandlers(e, sh)
 
 	id := uuid.NewString()
@@ -85,7 +101,7 @@ func TestProxy(t *testing.T) {
 	}{
 		{
 			i: "/profiles/" + id,
-			o: "/tenants/" + s.tenantID.String() + "/profiles/" + id,
+			o: "/tenants/" + tenantID.String() + "/profiles/" + id,
 		},
 	}
 
