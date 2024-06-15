@@ -1,3 +1,7 @@
+type strictRequest interface{
+    ToRequest(base *http.Request) (*http.Request,error) 
+}
+
 {{range .}}
     {{$opid := .OperationId -}}
     type {{$opid | ucFirst}}RequestObject struct {
@@ -7,6 +11,10 @@
         {{if .RequiresParamObject -}}
             Params {{$opid}}Params
         {{end -}}
+    }
+
+    func ( r {{$opid | ucFirst}}RequestObject) ToRequest(base *http.Request) (*http.Request,error) {
+        return base,nil
     }
 
 {{end}}

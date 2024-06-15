@@ -199,10 +199,17 @@ func RegisterHandlersWithBaseURL(router EchoRouter, si ServerInterface, baseURL 
 }
 
 /* ignored */
+type strictRequest interface {
+	ToRequest(base *http.Request) (*http.Request, error)
+}
 
 type GetProfileRequestObject struct {
 	ProfileId ProfileProfileID `json:"profile-id"`
 	Params    GetProfileParams
+}
+
+func (r GetProfileRequestObject) ToRequest(base *http.Request) (*http.Request, error) {
+	return base, nil
 }
 
 type PutProfileRequestObject struct {
@@ -210,9 +217,17 @@ type PutProfileRequestObject struct {
 	Params    PutProfileParams
 }
 
+func (r PutProfileRequestObject) ToRequest(base *http.Request) (*http.Request, error) {
+	return base, nil
+}
+
 type GetValidatedProfileRequestObject struct {
 	ProfileId ProfileProfileID `json:"profile-id"`
 	Params    GetValidatedProfileParams
+}
+
+func (r GetValidatedProfileRequestObject) ToRequest(base *http.Request) (*http.Request, error) {
+	return base, nil
 }
 
 // StrictServerInterface represents all server handlers.
@@ -263,9 +278,7 @@ func (sh *strictHandler) GetProfile(ctx echo.Context, profileId ProfileProfileID
 		return err
 	}
 
-	outreqobj := obj.(UpstreamProfileGetProfileRequestObject)
-
-	outreq, err := outreqobj.CreateRequest(ctx.Request())
+	outreq, err := obj.(strictRequest).ToRequest(ctx.Request())
 	if err != nil {
 		return err
 	}
@@ -293,9 +306,7 @@ func (sh *strictHandler) PutProfile(ctx echo.Context, profileId ProfileProfileID
 		return err
 	}
 
-	outreqobj := obj.(UpstreamProfilePutProfileRequestObject)
-
-	outreq, err := outreqobj.CreateRequest(ctx.Request())
+	outreq, err := obj.(strictRequest).ToRequest(ctx.Request())
 	if err != nil {
 		return err
 	}
@@ -323,9 +334,7 @@ func (sh *strictHandler) GetValidatedProfile(ctx echo.Context, profileId Profile
 		return err
 	}
 
-	outreqobj := obj.(UpstreamProfileGetProfileRequestObject)
-
-	outreq, err := outreqobj.CreateRequest(ctx.Request())
+	outreq, err := obj.(strictRequest).ToRequest(ctx.Request())
 	if err != nil {
 		return err
 	}

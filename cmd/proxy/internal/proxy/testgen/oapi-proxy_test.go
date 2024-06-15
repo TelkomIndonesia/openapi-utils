@@ -77,41 +77,74 @@ func TestProxy(t *testing.T) {
 	}
 	s := ServerImpl{}
 
-	tenantID := uuid.New()
-	mw := func(f strictecho.StrictEchoHandlerFunc, operationID string) strictecho.StrictEchoHandlerFunc {
-		return func(ctx echo.Context, request interface{}) (response interface{}, err error) {
-			ctx.SetRequest(
-				ctx.Request().WithContext(
-					context.WithValue(ctx.Request().Context(),
-						ctxTenantID{}, tenantID,
-					)))
+	t.Run("standard", func(t *testing.T) {
+		tenantID := uuid.New()
+		mw := func(f strictecho.StrictEchoHandlerFunc, operationID string) strictecho.StrictEchoHandlerFunc {
+			return func(ctx echo.Context, request interface{}) (response interface{}, err error) {
+				ctx.SetRequest(
+					ctx.Request().WithContext(
+						context.WithValue(ctx.Request().Context(),
+							ctxTenantID{}, tenantID,
+						)))
 
-			return f(ctx, request)
+				return f(ctx, request)
+			}
 		}
-	}
 
-	e := echo.New()
-	sh := testgen.NewStrictHandler(s, p, []strictecho.StrictEchoMiddlewareFunc{mw})
-	testgen.RegisterHandlers(e, sh)
+		e := echo.New()
+		sh := testgen.NewStrictHandler(s, p, []strictecho.StrictEchoMiddlewareFunc{mw})
+		testgen.RegisterHandlers(e, sh)
 
-	id := uuid.NewString()
-	testtable := []struct {
-		i string
-		o string
-	}{
-		{
-			i: "/profiles/" + id,
-			o: "/tenants/" + tenantID.String() + "/profiles/" + id,
-		},
-	}
+		id := uuid.NewString()
+		testtable := []struct {
+			i string
+			o string
+		}{
+			{
+				i: "/profiles/" + id,
+				o: "/tenants/" + tenantID.String() + "/profiles/" + id,
+			},
+		}
 
-	for _, d := range testtable {
-		req := httptest.NewRequest(http.MethodGet, d.i, nil)
-		res := httptest.NewRecorder()
-		e.ServeHTTP(res, req)
+		for _, d := range testtable {
+			req := httptest.NewRequest(http.MethodGet, d.i, nil)
+			res := httptest.NewRecorder()
+			e.ServeHTTP(res, req)
 
-		assert.Equal(t, d.o, receivedURL)
+			assert.Equal(t, d.o, receivedURL)
 
-	}
+		}
+	})
+
+	t.Run("passthrough-middleware", func(t *testing.T) {
+		mw := func(f strictecho.StrictEchoHandlerFunc, operationID string) strictecho.StrictEchoHandlerFunc {
+			return func(ctx echo.Context, request interface{}) (response interface{}, err error) {
+				return request, err
+			}
+		}
+
+		e := echo.New()
+		sh := testgen.NewStrictHandler(s, p, []strictecho.StrictEchoMiddlewareFunc{mw})
+		testgen.RegisterHandlers(e, sh)
+
+		id := uuid.NewString()
+		testtable := []struct {
+			i string
+			o string
+		}{
+			{
+				i: "/profiles/" + id,
+			},
+		}
+
+		for _, d := range testtable {
+			req := httptest.NewRequest(http.MethodGet, d.i, nil)
+			res := httptest.NewRecorder()
+			e.ServeHTTP(res, req)
+
+			assert.Equal(t, d.i, receivedURL)
+
+		}
+	})
 
 }

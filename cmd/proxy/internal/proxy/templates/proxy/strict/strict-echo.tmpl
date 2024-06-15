@@ -11,6 +11,7 @@ type strictHandler struct {
     middlewares []StrictMiddlewareFunc
 }
 
+
 {{range .}}
     {{$opid := .OperationId}}
     // {{$opid}} operation middleware
@@ -37,9 +38,7 @@ type strictHandler struct {
             return err
         } 
 
-        outreqobj := obj.({{ (or (upstreamOperationID $opid)  $opid) | ucFirst}}RequestObject)
-
-        outreq, err := outreqobj.CreateRequest(ctx.Request())
+        outreq, err := obj.(strictRequest).ToRequest(ctx.Request())
         if err != nil {
             return err
         }

@@ -67,7 +67,7 @@ type UpstreamProfileGetProfileRequestObject struct {
 	Params    UpstreamProfileGetProfileParams
 }
 
-func (r UpstreamProfileGetProfileRequestObject) CreateRequest(base *http.Request) (*http.Request, error) {
+func (r UpstreamProfileGetProfileRequestObject) ToRequest(base *http.Request) (*http.Request, error) {
 
 	tenantId := r.TenantId
 	profileId := r.ProfileId
@@ -127,7 +127,7 @@ type UpstreamProfilePutProfileRequestObject struct {
 	Params    UpstreamProfilePutProfileParams
 }
 
-func (r UpstreamProfilePutProfileRequestObject) CreateRequest(base *http.Request) (*http.Request, error) {
+func (r UpstreamProfilePutProfileRequestObject) ToRequest(base *http.Request) (*http.Request, error) {
 
 	tenantId := r.TenantId
 	profileId := r.ProfileId

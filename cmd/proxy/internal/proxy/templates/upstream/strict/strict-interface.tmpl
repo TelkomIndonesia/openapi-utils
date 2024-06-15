@@ -9,7 +9,7 @@
         {{end -}}
     }
 
-    func ( r {{$opid | ucFirst}}RequestObject) CreateRequest(base *http.Request) (*http.Request,error) { 
+    func ( r {{$opid | ucFirst}}RequestObject) ToRequest(base *http.Request) (*http.Request,error) { 
     {{range $paramIdx, $param := .PathParams}}
         {{.GoVariableName}} := r.{{.GoName | ucFirst}}
     {{- end}}
