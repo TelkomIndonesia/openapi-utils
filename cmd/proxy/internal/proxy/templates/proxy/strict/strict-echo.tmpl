@@ -1,12 +1,13 @@
 type StrictHandlerFunc = strictecho.StrictEchoHandlerFunc
 type StrictMiddlewareFunc = strictecho.StrictEchoMiddlewareFunc
 
-func NewStrictHandler(ssi StrictServerInterface, middlewares []StrictMiddlewareFunc) ServerInterface {
-    return &strictHandler{ssi: ssi, middlewares: middlewares}
+func NewStrictHandler(ssi StrictServerInterface, sui StrictUpstreamInterface, middlewares []StrictMiddlewareFunc) ServerInterface {
+    return &strictHandler{ssi: ssi, sui: sui, middlewares: middlewares}
 }
 
 type strictHandler struct {
     ssi StrictServerInterface
+    sui StrictUpstreamInterface
     middlewares []StrictMiddlewareFunc
 }
 
@@ -43,7 +44,7 @@ type strictHandler struct {
             return err
         }
 
-        //TODO: do proxy
+        sh.sui.{{ upstream $opid }}()(ctx.Response(),outreq)
 
         return nil
     }

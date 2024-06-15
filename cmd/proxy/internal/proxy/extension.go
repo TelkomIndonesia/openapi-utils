@@ -21,7 +21,7 @@ type ProxyExtension struct {
 	doc      libopenapi.Document
 	docv3    *libopenapi.DocumentModel[v3.Document]
 	proxied  map[*v3.Operation]*ProxyOperation
-	upstream map[libopenapi.Document]map[*v3.Operation]map[*ProxyOperation]struct{}
+	upstream map[string]*Proxy
 }
 
 func NewProxyExtension(ctx context.Context, specPath string) (pe ProxyExtension, err error) {
@@ -67,24 +67,22 @@ func (pe *ProxyExtension) loadDoc() (err error) {
 }
 
 func (pe *ProxyExtension) loadProxy(ctx context.Context) (err error) {
-	pe.proxied = map[*v3.Operation]*ProxyOperation{}
-	pe.upstream = make(map[libopenapi.Document]map[*v3.Operation]map[*ProxyOperation]struct{})
-
-	proxies := map[string]*Proxy{}
+	pe.upstream = map[string]*Proxy{}
 	if pe.docv3.Model.Components.Extensions != nil {
 		ex, ok := pe.docv3.Model.Components.Extensions.Get("x-proxy")
 		if ok {
-			if err = ex.Decode(proxies); err != nil {
+			if err = ex.Decode(pe.upstream); err != nil {
 				return fmt.Errorf("fail to decode `x-proxy` component :%w", err)
 			}
 
-			for k, v := range proxies {
+			for k, v := range pe.upstream {
 				v.Name = k
 				v.Spec = path.Join(pe.specDir, v.Spec)
 			}
 		}
 	}
 
+	pe.proxied = map[*v3.Operation]*ProxyOperation{}
 	for m := range orderedmap.Iterate(ctx, pe.docv3.Model.Paths.PathItems) {
 		for _, op := range util.GetOperationsMap(m.Value()) {
 			if op.Extensions == nil {
@@ -100,7 +98,7 @@ func (pe *ProxyExtension) loadProxy(ctx context.Context) (err error) {
 				return fmt.Errorf("fail to decode Proxy Operation : %w", err)
 			}
 			if pop.Spec == "" && pop.Proxy != nil && pop.Proxy.Name != "" {
-				pop.Proxy, ok = proxies[pop.Name]
+				pop.Proxy, ok = pe.upstream[pop.Name]
 				if !ok {
 					return fmt.Errorf("invalid proxy definition for %s: no spec is provided", pop.Proxy.Name)
 				}
@@ -108,30 +106,40 @@ func (pe *ProxyExtension) loadProxy(ctx context.Context) (err error) {
 				pop.Spec = path.Join(pe.specDir, pop.Spec)
 			}
 
-			doc, err := pop.GetOpenAPIDoc()
+			_, err = pop.GetOpenAPIDoc()
 			if err != nil {
 				return fmt.Errorf("fail to load upstream openapi spec: %w", err)
 			}
-			uop, err := pop.GetUpstreamOperation()
+			_, err = pop.GetUpstreamOperation()
 			if err != nil {
 				return fmt.Errorf("fail to find upstream operation: %w", err)
 			}
+			_, err = pop.GetProxiedParameters()
+			if err != nil {
+				return fmt.Errorf("fail to get proxied parameter: %w", err)
+			}
 
 			pe.proxied[op] = &pop
-			if _, ok := pe.upstream[doc]; !ok {
-				pe.upstream[doc] = map[*v3.Operation]map[*ProxyOperation]struct{}{}
-			}
-			if _, ok := pe.upstream[doc][uop]; !ok {
-				pe.upstream[doc][uop] = map[*ProxyOperation]struct{}{}
-			}
-			pe.upstream[doc][uop][&pop] = struct{}{}
 		}
 	}
 	return
 }
 
 func (pe *ProxyExtension) pruneAndPrefixUpstream(ctx context.Context) (err error) {
-	for doc, uopPopMap := range pe.upstream {
+	upstreams := map[libopenapi.Document]map[*v3.Operation]map[*ProxyOperation]struct{}{}
+	for _, pop := range pe.proxied {
+		doc, _ := pop.GetOpenAPIDoc()
+		uop, _ := pop.GetUpstreamOperation()
+		if _, ok := upstreams[doc]; !ok {
+			upstreams[doc] = map[*v3.Operation]map[*ProxyOperation]struct{}{}
+		}
+		if _, ok := upstreams[doc][uop]; !ok {
+			upstreams[doc][uop] = map[*ProxyOperation]struct{}{}
+		}
+		upstreams[doc][uop][pop] = struct{}{}
+	}
+
+	for doc, uopPopMap := range upstreams {
 		docv3, _ := doc.BuildV3Model()
 		prefix := util.MapFirstEntry(util.MapFirstEntry(uopPopMap).Value).Key.GetName()
 
@@ -195,21 +203,17 @@ func (pe *ProxyExtension) pruneAndPrefixUpstream(ctx context.Context) (err error
 // compile proxy document
 func (pe *ProxyExtension) compile() (err error) {
 	for op, pop := range pe.proxied {
-		uop, err := pop.GetUpstreamOperation()
-		if err != nil {
-			return fmt.Errorf("fail to get upstream operation: %w", err)
-		}
-		params, err := pop.GetProxiedParameters()
-		if err != nil {
-			return fmt.Errorf("fail to get proxied parameter: %w", err)
-		}
+		uop, _ := pop.GetUpstreamOperation()
+		params, _ := pop.GetProxiedParameters()
 
 		// copy operation
 		opParam := util.CopyParameters(op.Parameters, params...)
 		opID := op.OperationId
 		opSecurity := op.Security
 		opExt := op.Extensions
+
 		*op = *uop
+
 		op.Parameters = opParam
 		op.OperationId = opID
 		op.Security = opSecurity
@@ -221,8 +225,13 @@ func (pe *ProxyExtension) compile() (err error) {
 
 	return
 }
+
 func (pe *ProxyExtension) Proxied() map[*v3.Operation]*ProxyOperation {
 	return pe.proxied
+}
+
+func (pe *ProxyExtension) Upstream() map[string]*Proxy {
+	return pe.upstream
 }
 
 func (pe *ProxyExtension) CreateProxyDoc() (b []byte, ndoc libopenapi.Document, docv3 *libopenapi.DocumentModel[v3.Document], err error) {

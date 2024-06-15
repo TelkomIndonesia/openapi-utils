@@ -19,3 +19,9 @@ type StrictServerInterface interface {
 {{$opid}}(ctx context.Context, request {{$opid | ucFirst}}RequestObject) ({{ (or (upstreamOperationID $opid)  $opid) | ucFirst}}RequestObject, error)
 {{end}}{{/* range . */ -}}
 }
+
+type StrictUpstreamInterface interface {
+{{range upstreams}}
+    {{.}}() http.HandlerFunc 
+{{end}}
+} 

@@ -25,6 +25,33 @@ func Generate(ctx context.Context, specPath string) (err error) {
 		return fmt.Errorf("fail to create proxy extension: %w", err)
 	}
 
+	codegen.TemplateFunctions["upstreamOperationID"] = func(opid string) string {
+		for k, v := range pe.Proxied() {
+			if opid != k.OperationId {
+				continue
+			}
+
+			uop, _ := v.GetUpstreamOperation()
+			return prefixUpstream + uop.OperationId
+		}
+		return ""
+	}
+	codegen.TemplateFunctions["upstream"] = func(opid string) string {
+		for k, v := range pe.Proxied() {
+			if opid != k.OperationId {
+				continue
+			}
+			return v.GetName()
+		}
+		return ""
+	}
+	codegen.TemplateFunctions["upstreams"] = func() (a []string) {
+		for _, p := range pe.Upstream() {
+			a = append(a, p.GetName())
+		}
+		return
+	}
+
 	{
 		spec, _, _, err := pe.CreateProxyDoc()
 		if err != nil {
@@ -39,19 +66,9 @@ func Generate(ctx context.Context, specPath string) (err error) {
 		if err != nil {
 			return fmt.Errorf("fail to load template: %w", err)
 		}
-		codegen.TemplateFunctions["upstreamOperationID"] = func(opid string) string {
-			for k, v := range pe.proxied {
-				if opid != k.OperationId {
-					continue
-				}
 
-				uop, _ := v.GetUpstreamOperation()
-				return prefixUpstream + uop.OperationId
-			}
-			return ""
-		}
 		code, err := codegen.Generate(kinspec, codegen.Configuration{
-			PackageName: "oapi",
+			PackageName: "testgen",
 			Generate: codegen.GenerateOptions{
 				EchoServer: true,
 				Strict:     true,
@@ -64,7 +81,7 @@ func Generate(ctx context.Context, specPath string) (err error) {
 		if err != nil {
 			return fmt.Errorf("fail to generate code: %w", err)
 		}
-		err = os.WriteFile("testdata/gen/oapi-proxy.go", []byte(code), 0o644)
+		err = os.WriteFile("testgen/oapi-proxy.go", []byte(code), 0o644)
 		if err != nil {
 			return fmt.Errorf("fail to write generated code: %w", err)
 		}
@@ -107,7 +124,7 @@ func Generate(ctx context.Context, specPath string) (err error) {
 			}
 
 			code, err := codegen.Generate(kinspec, codegen.Configuration{
-				PackageName: "oapi",
+				PackageName: "testgen",
 				Generate: codegen.GenerateOptions{
 					EchoServer: true,
 					Strict:     true,
@@ -121,7 +138,7 @@ func Generate(ctx context.Context, specPath string) (err error) {
 				return fmt.Errorf("fail to generate code: %w", err)
 			}
 
-			file := fmt.Sprintf("testdata/gen/oapi-upstream-%s.go", strings.ToLower(pop.GetName()))
+			file := fmt.Sprintf("testgen/oapi-upstream-%s.go", strings.ToLower(pop.GetName()))
 			err = os.WriteFile(file, []byte(code), 0o644)
 			if err != nil {
 				return fmt.Errorf("fail to write generated code: %w", err)
