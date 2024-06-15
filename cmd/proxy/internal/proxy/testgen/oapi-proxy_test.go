@@ -78,8 +78,6 @@ func TestProxy(t *testing.T) {
 	s := ServerImpl{}
 
 	tenantID := uuid.New()
-
-	e := echo.New()
 	mw := func(f strictecho.StrictEchoHandlerFunc, operationID string) strictecho.StrictEchoHandlerFunc {
 		return func(ctx echo.Context, request interface{}) (response interface{}, err error) {
 			ctx.SetRequest(
@@ -91,6 +89,8 @@ func TestProxy(t *testing.T) {
 			return f(ctx, request)
 		}
 	}
+
+	e := echo.New()
 	sh := testgen.NewStrictHandler(s, p, []strictecho.StrictEchoMiddlewareFunc{mw})
 	testgen.RegisterHandlers(e, sh)
 
