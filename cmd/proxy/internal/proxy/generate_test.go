@@ -16,7 +16,7 @@ func TestGenerate(t *testing.T) {
 	cmd := exec.Command("go", "test", ".", "-v")
 	cmd.Dir = "testgen"
 	out, err := cmd.Output()
-	require.NoError(t, err)
 	t.Log(string(out))
+	require.NoError(t, err)
 	assert.Equal(t, 0, cmd.ProcessState.ExitCode())
 }

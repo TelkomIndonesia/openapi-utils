@@ -67,15 +67,15 @@ type ctxTenantID struct{}
 
 func TestProxy(t *testing.T) {
 	var receivedURL string
-	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	profileServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		receivedURL = r.URL.String()
 	}))
 
-	u, _ := url.Parse(ts.URL)
-	p := ProxyImpl{
+	u, _ := url.Parse(profileServer.URL)
+	proxyImpl := ProxyImpl{
 		profile: httputil.NewSingleHostReverseProxy(u),
 	}
-	s := ServerImpl{}
+	serverImpl := ServerImpl{}
 
 	t.Run("standard", func(t *testing.T) {
 		tenantID := uuid.New()
@@ -92,7 +92,7 @@ func TestProxy(t *testing.T) {
 		}
 
 		e := echo.New()
-		sh := testgen.NewStrictHandler(s, p, []strictecho.StrictEchoMiddlewareFunc{mw})
+		sh := testgen.NewStrictHandler(serverImpl, proxyImpl, []strictecho.StrictEchoMiddlewareFunc{mw})
 		testgen.RegisterHandlers(e, sh)
 
 		id := uuid.NewString()
@@ -124,7 +124,7 @@ func TestProxy(t *testing.T) {
 		}
 
 		e := echo.New()
-		sh := testgen.NewStrictHandler(s, p, []strictecho.StrictEchoMiddlewareFunc{mw})
+		sh := testgen.NewStrictHandler(nil, proxyImpl, []strictecho.StrictEchoMiddlewareFunc{mw})
 		testgen.RegisterHandlers(e, sh)
 
 		id := uuid.NewString()
